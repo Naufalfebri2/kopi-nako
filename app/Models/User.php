@@ -24,4 +24,14 @@ class User extends Authenticatable
     {
         return $this->hasOne(Employee::class, 'id_user');
     }
+
+    // Inisial nama untuk avatar (contoh: "Supervisor" jadi "S", "Rizky Ramadhan" jadi "RR")
+    public function getInitialsAttribute(): string
+    {
+        return collect(explode(' ', trim($this->name)))
+            ->filter()
+            ->take(2)
+            ->map(fn ($word) => mb_strtoupper(mb_substr($word, 0, 1)))
+            ->implode('');
+    }
 }
