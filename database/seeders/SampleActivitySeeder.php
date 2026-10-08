@@ -10,6 +10,7 @@ use App\Models\MasterShift;
 use App\Models\Notification;
 use App\Models\ShiftRequest;
 use App\Models\ShiftSchedule;
+use App\Models\ShiftScheduleDetail;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
@@ -17,15 +18,30 @@ use Illuminate\Database\Seeder;
 // Data contoh untuk menguji Dashboard. Hapus dari DatabaseSeeder sebelum dipakai sungguhan.
 class SampleActivitySeeder extends Seeder
 {
-    private array $shifts;
+    /** @var array<string, ShiftSchedule> */
+    private array $schedules = [];
     private array $leaves;
     private User $supervisor;
+    private Carbon $shiftDate;
 
     public function run(): void
     {
-        $this->shifts = MasterShift::pluck('id', 'name')->all();
         $this->leaves = LeaveType::pluck('id', 'name')->all();
         $this->supervisor = $this->user('juandi');
+        $this->shiftDate = now()->addDays(2)->startOfDay();
+
+        foreach (MasterShift::all() as $shift) {
+            $this->schedules[$shift->name] = ShiftSchedule::create([
+                'shift_id' => $shift->id,
+                'status' => 'terbit',
+                'publish_by' => $this->supervisor->id,
+            ]);
+        }
+
+        // Leader yang bertugas pada tiap shift
+        $this->assign('alfi', 'Pagi', true);
+        $this->assign('hendri', 'Siang', true);
+        $this->assign('fatah', 'Malam', true);
 
         $alfi = $this->user('alfi');
         $fatah = $this->user('fatah');
@@ -92,13 +108,14 @@ class SampleActivitySeeder extends Seeder
             ->setTime(9 + $n, 15);
     }
 
-    private function schedule(Employee $employee, string $shift): ShiftSchedule
+    // Menempatkan karyawan pada jadwal sebuah shift di tanggal contoh
+    private function assign(string $who, string $shift, bool $lead = false): void
     {
-        return ShiftSchedule::create([
-            'id_employee' => $employee->id,
-            'shift_id' => $this->shifts[$shift],
-            'status' => 'terbit',
-            'publish_by' => $this->supervisor->id,
+        ShiftScheduleDetail::create([
+            'id_schedule' => $this->schedules[$shift]->id,
+            'id_employee' => $this->employee($who)->id,
+            'status_lead' => $lead,
+            'date' => $this->shiftDate->toDateString(),
         ]);
     }
 
@@ -106,14 +123,16 @@ class SampleActivitySeeder extends Seeder
         string $who, string $shift, string $partner, string $partnerShift,
         RequestStatus $status, string $reason,
     ): ShiftRequest {
+        $this->assign($who, $shift);
+        $this->assign($partner, $partnerShift);
+
         $employee = $this->employee($who);
-        $partnerEmployee = $this->employee($partner);
 
         return ShiftRequest::create([
             'employee_id' => $employee->id,
-            'schedule_id' => $this->schedule($employee, $shift)->id,
-            'partner_id' => $partnerEmployee->id,
-            'partner_schedule_id' => $this->schedule($partnerEmployee, $partnerShift)->id,
+            'schedule_id' => $this->schedules[$shift]->id,
+            'partner_id' => $this->employee($partner)->id,
+            'partner_schedule_id' => $this->schedules[$partnerShift]->id,
             'status' => $status,
             'reason' => $reason,
             'created_by' => $employee->id_user,
@@ -123,11 +142,13 @@ class SampleActivitySeeder extends Seeder
     private function leaveRequest(
         string $who, string $shift, string $leave, RequestStatus $status, string $reason,
     ): ShiftRequest {
+        $this->assign($who, $shift);
+
         $employee = $this->employee($who);
 
         return ShiftRequest::create([
             'employee_id' => $employee->id,
-            'schedule_id' => $this->schedule($employee, $shift)->id,
+            'schedule_id' => $this->schedules[$shift]->id,
             'leave_id' => $this->leaves[$leave],
             'status' => $status,
             'reason' => $reason,
