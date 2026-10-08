@@ -78,7 +78,7 @@
             </div>
         </div>
 
-        <div class="col-lg-4">
+        <div class="col-lg-4 d-flex flex-column gap-3">
             <div class="kn-panel">
                 <h3 class="kn-panel-title">Notifikasi</h3>
                 @forelse ($notifications as $notification)
@@ -89,6 +89,48 @@
                 @empty
                     <div class="kn-empty">Belum ada notifikasi.</div>
                 @endforelse
+            </div>
+
+            <div class="kn-panel">
+                <h3 class="kn-panel-title">Shift Berjalan Saat Ini</h3>
+                @forelse ($running->take(6) as $detail)
+                    <div class="kn-shift-item">
+                        <span class="kn-avatar kn-avatar-sm">{{ $detail->employee->user->initials }}</span>
+                        <div>
+                            <div class="fw-semibold small">{{ $detail->employee->user->name }}</div>
+                            <div class="kn-muted small">{{ $detail->employee->job?->name }}</div>
+                        </div>
+                        <span class="kn-badge-time">
+                            {{ $detail->schedule->masterShift->name }} · {{ $detail->schedule->masterShift->time_range }}
+                        </span>
+                    </div>
+                @empty
+                    <div class="kn-empty">Tidak ada shift yang sedang berjalan.</div>
+                @endforelse
+                @if ($running->count() > 6)
+                    <div class="kn-muted small mt-2">dan {{ $running->count() - 6 }} lainnya</div>
+                @endif
+            </div>
+
+            <div class="kn-panel">
+                <h3 class="kn-panel-title">Jadwal Shift Hari Ini</h3>
+                @forelse ($upcoming->take(6) as $detail)
+                    <div class="kn-shift-item">
+                        <span class="kn-avatar kn-avatar-sm">{{ $detail->employee->user->initials }}</span>
+                        <div>
+                            <div class="fw-semibold small">{{ $detail->employee->user->name }}</div>
+                            <div class="kn-muted small">{{ $detail->employee->job?->name }}</div>
+                        </div>
+                        <span class="kn-badge-time kn-badge-soft">
+                            {{ $detail->schedule->masterShift->name }} · {{ $detail->schedule->masterShift->time_range }}
+                        </span>
+                    </div>
+                @empty
+                    <div class="kn-empty">Tidak ada jadwal berikutnya hari ini.</div>
+                @endforelse
+                @if ($upcoming->count() > 6)
+                    <div class="kn-muted small mt-2">dan {{ $upcoming->count() - 6 }} lainnya</div>
+                @endif
             </div>
         </div>
     </div>

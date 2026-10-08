@@ -10,6 +10,7 @@ use App\Models\LogRequest;
 use App\Models\Role;
 use App\Models\ShiftRequest;
 use App\Models\User;
+use App\Services\ScheduleService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -17,6 +18,10 @@ use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
+    public function __construct(private ScheduleService $schedules)
+    {
+    }
+
     public function index(Request $request): View
     {
         $user = $request->user();
@@ -26,6 +31,8 @@ class DashboardController extends Controller
             'chart' => $this->weeklyActivity($user),
             'requests' => $this->latestRequests($user),
             'notifications' => $this->notifications($user),
+            'running' => $this->schedules->running(now()),
+            'upcoming' => $this->schedules->upcomingToday(now()),
         ]);
     }
 
