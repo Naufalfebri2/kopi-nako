@@ -19,7 +19,9 @@
             <a href="#"><i class="fa-regular fa-calendar"></i> Jadwal Shift</a>
         </li>
         <li>
-            <a href="#"><i class="fa-solid fa-right-left"></i> Pengajuan Izin/Tukar</a>
+            <a href="{{ route('pengajuan.index') }}" class="{{ request()->routeIs('pengajuan.*') ? 'active' : '' }}">
+                <i class="fa-solid fa-right-left"></i> Pengajuan Izin/Tukar
+            </a>
         </li>
     </ul>
 
