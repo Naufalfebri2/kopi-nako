@@ -3,9 +3,10 @@
 namespace App\Models;
 
 use App\Enums\EmployeeStatus;
+use App\Models\Job;
 use App\Models\Notification;
 use App\Models\ShiftRequest;
-use App\Models\ShiftSchedule;
+use App\Models\ShiftScheduleDetail;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 
@@ -13,7 +14,7 @@ class Employee extends Model
 {
     protected $table = 'employees';
     public $timestamps = false;
-    protected $fillable = ['nik', 'id_user', 'no_phone', 'status'];
+    protected $fillable = ['nik', 'id_user', 'job_id', 'no_phone', 'status'];
     protected $casts = ['status' => EmployeeStatus::class];
 
     public function user()
@@ -21,9 +22,14 @@ class Employee extends Model
         return $this->belongsTo(User::class, 'id_user');
     }
 
-    public function schedules()
+    public function job()
     {
-        return $this->hasMany(ShiftSchedule::class, 'id_employee');
+        return $this->belongsTo(Job::class, 'job_id');
+    }
+
+    public function scheduleDetails()
+    {
+        return $this->hasMany(ShiftScheduleDetail::class, 'id_employee');
     }
 
     public function requests()
