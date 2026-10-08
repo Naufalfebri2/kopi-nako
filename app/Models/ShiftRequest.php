@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\RequestStatus;
 use App\Models\Employee;
 use App\Models\LeaveType;
 use App\Models\LogRequest;
@@ -17,6 +18,7 @@ class ShiftRequest extends Model
         'employee_id', 'schedule_id', 'leave_id', 'partner_id',
         'partner_schedule_id', 'status', 'reason', 'created_by',
     ];
+    protected $casts = ['status' => RequestStatus::class];
 
     public function employee()
     {
@@ -51,5 +53,20 @@ class ShiftRequest extends Model
     public function logs()
     {
         return $this->hasMany(LogRequest::class, 'id_shiftrequest');
+    }
+
+    // Jenis pengajuan diturunkan dari kolom yang terisi, tanpa kolom tambahan
+    public function getTypeLabelAttribute(): string
+    {
+        return match (true) {
+            $this->leave_id !== null => 'Izin',
+            $this->partner_id !== null => 'Tukar Shift',
+            default => '—',
+        };
+    }
+
+    public function getTargetShiftNameAttribute(): string
+    {
+        return $this->partnerSchedule?->masterShift?->name ?? '—';
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\EmployeeStatus;
 use App\Models\Notification;
 use App\Models\ShiftRequest;
 use App\Models\ShiftSchedule;
@@ -13,6 +14,7 @@ class Employee extends Model
     protected $table = 'employees';
     public $timestamps = false;
     protected $fillable = ['nik', 'id_user', 'no_phone', 'status'];
+    protected $casts = ['status' => EmployeeStatus::class];
 
     public function user()
     {
