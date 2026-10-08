@@ -1,0 +1,154 @@
+.kn-stat {
+    height: 100%;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+}
+.kn-stat-icon {
+    width: 34px;
+    height: 34px;
+    margin-bottom: 14px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.kn-stat-warn .kn-stat-icon {
+    background: #efd9cf;
+}
+.kn-stat-muted .kn-stat-icon {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+}
+.kn-stat-value {
+    font:
+        700 26px/1 "Poppins",
+        sans-serif;
+    margin-bottom: 6px;
+}
+.kn-stat-label {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.kn-panel-title {
+    font:
+        600 14.5px "Poppins",
+        sans-serif;
+    margin: 0 0 16px;
+}
+
+/* Grafik batang */
+.kn-chart {
+    display: flex;
+    gap: 10px;
+    height: 170px;
+}
+.kn-chart-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.kn-chart-track {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+.kn-chart-bar {
+    width: 100%;
+    max-width: 30px;
+    min-height: 3px;
+    background: var(--accent);
+    border-radius: 4px 4px 0 0;
+}
+.kn-chart-bar:hover {
+    opacity: 0.8;
+}
+.kn-chart-label {
+    margin-top: 8px;
+    font-size: 10.5px;
+    color: var(--muted);
+}
+
+/* Tabel */
+.kn-table thead th {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+}
+.kn-table td {
+    font-size: 13px;
+    padding: 12px 8px;
+    border-color: var(--border);
+}
+.kn-avatar-sm {
+    width: 30px;
+    height: 30px;
+    font-size: 11.5px;
+}
+
+.kn-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+}
+.kn-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.kn-dot-disetujui {
+    background: var(--ink);
+}
+.kn-dot-menunggu {
+    border: 2px solid var(--muted);
+}
+.kn-dot-ditolak {
+    background: var(--accent-deep);
+}
+
+/* Notifikasi */
+.kn-feed-item {
+    display: flex;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+}
+.kn-feed-item:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+.kn-feed-icon {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--surface);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.kn-feed-text {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+}
+
+.kn-empty {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    padding: 16px 0;
+}
