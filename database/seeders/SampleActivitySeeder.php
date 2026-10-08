@@ -31,17 +31,11 @@ class SampleActivitySeeder extends Seeder
         $this->shiftDate = now()->addDays(2)->startOfDay();
 
         foreach (MasterShift::all() as $shift) {
-            $this->schedules[$shift->name] = ShiftSchedule::create([
-                'shift_id' => $shift->id,
-                'status' => 'terbit',
-                'publish_by' => $this->supervisor->id,
-            ]);
+            $this->schedules[$shift->name] = ShiftSchedule::firstOrCreate(
+                ['shift_id' => $shift->id],
+                ['status' => 'terbit', 'publish_by' => $this->supervisor->id],
+            );
         }
-
-        // Leader yang bertugas pada tiap shift
-        $this->assign('alfi', 'Pagi', true);
-        $this->assign('hendri', 'Siang', true);
-        $this->assign('fatah', 'Malam', true);
 
         $alfi = $this->user('alfi');
         $fatah = $this->user('fatah');
@@ -108,15 +102,19 @@ class SampleActivitySeeder extends Seeder
             ->setTime(9 + $n, 15);
     }
 
-    // Menempatkan karyawan pada jadwal sebuah shift di tanggal contoh
-    private function assign(string $who, string $shift, bool $lead = false): void
+    // Menempatkan karyawan pada shift di tanggal contoh (menimpa jadwal berputar bila ada)
+    private function assign(string $who, string $shift): void
     {
-        ShiftScheduleDetail::create([
-            'id_schedule' => $this->schedules[$shift]->id,
-            'id_employee' => $this->employee($who)->id,
-            'status_lead' => $lead,
-            'date' => $this->shiftDate->toDateString(),
-        ]);
+        ShiftScheduleDetail::updateOrCreate(
+            [
+                'id_employee' => $this->employee($who)->id,
+                'date' => $this->shiftDate->toDateString(),
+            ],
+            [
+                'id_schedule' => $this->schedules[$shift]->id,
+                'status_lead' => false,
+            ],
+        );
     }
 
     private function swapRequest(
