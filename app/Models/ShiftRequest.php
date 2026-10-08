@@ -65,6 +65,11 @@ class ShiftRequest extends Model
         };
     }
 
+    public function getSourceShiftNameAttribute(): string
+    {
+        return $this->schedule?->masterShift?->name ?? '—';
+    }
+
     public function getTargetShiftNameAttribute(): string
     {
         return $this->partnerSchedule?->masterShift?->name ?? '—';

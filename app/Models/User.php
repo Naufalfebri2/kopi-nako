@@ -25,7 +25,12 @@ class User extends Authenticatable
         return $this->hasOne(Employee::class, 'id_user');
     }
 
-    // Inisial nama untuk avatar (contoh: "Supervisor" jadi "S", "Rizky Ramadhan" jadi "RR")
+    public function hasRole(string $name): bool
+    {
+        return $this->role?->name === $name;
+    }
+
+    // Inisial nama untuk avatar (contoh: "Rizky Ramadhan" jadi "RR")
     public function getInitialsAttribute(): string
     {
         return collect(explode(' ', trim($this->name)))
