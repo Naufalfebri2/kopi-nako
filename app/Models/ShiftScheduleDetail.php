@@ -6,6 +6,14 @@ use App\Models\Employee;
 use App\Models\ShiftSchedule;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @property int $id
+ * @property int $id_schedule
+ * @property int $id_employee
+ * @property string|null $hour
+ * @property bool $status_lead
+ * @property \Illuminate\Support\Carbon $date
+ */
 class ShiftScheduleDetail extends Model
 {
     protected $table = 'shift_schedule_detail';
