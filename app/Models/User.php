@@ -30,6 +30,12 @@ class User extends Authenticatable
         return $this->role?->name === $name;
     }
 
+    // Laporan hanya untuk Supervisor dan Leader/Head
+    public function canViewReports(): bool
+    {
+        return $this->hasRole(Role::SUPERVISOR) || $this->hasRole(Role::LEADER);
+    }
+
     // Inisial nama untuk avatar (contoh: "Rizky Ramadhan" jadi "RR")
     public function getInitialsAttribute(): string
     {
