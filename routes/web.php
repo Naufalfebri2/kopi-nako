@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ShiftRequestController;
 use Illuminate\Support\Facades\Route;
@@ -26,4 +27,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/pengajuan/setujui-semua', [ShiftRequestController::class, 'approveAll'])->name('pengajuan.approve-all');
     Route::get('/pengajuan/{shiftRequest}', [ShiftRequestController::class, 'show'])->name('pengajuan.show');
     Route::post('/pengajuan/{shiftRequest}/keputusan', [ShiftRequestController::class, 'decide'])->name('pengajuan.decide');
+
+    Route::get('/laporan', [ReportController::class, 'index'])->name('laporan.index');
+    Route::get('/laporan/pdf', [ReportController::class, 'pdf'])->name('laporan.pdf');
 });
