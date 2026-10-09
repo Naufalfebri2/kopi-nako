@@ -25,6 +25,13 @@
                 <i class="fa-solid fa-right-left"></i> Pengajuan Izin/Tukar
             </a>
         </li>
+        @if (auth()->user()->canViewReports())
+            <li>
+                <a href="{{ route('laporan.index') }}" class="{{ request()->routeIs('laporan.*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-chart-column"></i> Laporan
+                </a>
+            </li>
+        @endif
     </ul>
 
     <div class="kn-sidebar-foot">Kopi Nako Pamulang<br>© {{ date('Y') }} — Internal System</div>

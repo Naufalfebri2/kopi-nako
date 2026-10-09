@@ -1,0 +1,18 @@
+.btn-kn,
+.btn-kn-outline {
+    text-decoration: none;
+}
+.kn-btn-sm {
+    padding: 8px 16px;
+    font-size: 12.5px;
+}
+
+.rpt-table .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.rpt-table tfoot td {
+    font-weight: 600;
+    background: var(--surface);
+    border-top: 2px solid var(--border);
+}
