@@ -2,15 +2,19 @@
 
 namespace App\Services;
 
+use App\Services\ScheduleService;
 use App\Enums\RequestStatus;
 use App\Models\Employee;
 use App\Models\LogRequest;
 use App\Models\Notification;
 use App\Models\Role;
 use App\Models\ShiftRequest;
+use App\Models\ShiftScheduleDetail;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+
 
 class RequestApproval
 {
@@ -19,12 +23,25 @@ class RequestApproval
 
     private const RELATIONS = ['employee.user.role', 'logs.approver.role'];
 
-    // Pengajuan Leader/Head dan Supervisor tidak perlu verifikasi Leader/Head
+    public function __construct(private ScheduleService $schedules)
+    {
+    }
+
+    // Karyawan yang menjadi Leader pada jadwal (shift dan tanggal) milik pengaju
+    public function leaderEmployeeIds(ShiftRequest $request): Collection
+    {
+        return ShiftScheduleDetail::where('id_schedule', $request->schedule_id)
+            ->where('status_lead', true)
+            ->pluck('id_employee');
+    }
+
+    // Pengajuan Karyawan diverifikasi Leader dulu, selama jadwalnya punya Leader
     public function needsLeader(ShiftRequest $request): bool
     {
         $request->loadMissing(self::RELATIONS);
 
-        return $request->employee->user->hasRole(Role::KARYAWAN);
+        return $request->employee->user->hasRole(Role::KARYAWAN)
+            && $this->leaderEmployeeIds($request)->isNotEmpty();
     }
 
     // Tahap yang sedang ditunggu, atau null kalau pengajuan sudah selesai
@@ -60,7 +77,9 @@ class RequestApproval
         }
 
         return match ($this->awaitingStep($request)) {
-            self::STEP_LEADER => $user->hasRole(Role::LEADER),
+            self::STEP_LEADER => $user->hasRole(Role::LEADER)
+                && $user->employee !== null
+                && $this->leaderEmployeeIds($request)->contains($user->employee->id),
             self::STEP_SUPERVISOR => $user->hasRole(Role::SUPERVISOR),
             default => false,
         };
@@ -76,12 +95,18 @@ class RequestApproval
             ->values();
     }
 
+    // Melempar DomainException bila tukar shift tidak bisa dijalankan lagi
     public function decide(User $user, ShiftRequest $request, bool $approve): void
     {
         $request->loadMissing(self::RELATIONS);
 
         DB::transaction(function () use ($user, $request, $approve) {
             $step = $this->awaitingStep($request);
+            $date = $request->shift_date; // dibaca sebelum jadwal ditukar
+
+            if ($approve && $step === self::STEP_SUPERVISOR && $request->partner_id !== null) {
+                $this->schedules->swapAssignments($request);
+            }
 
             LogRequest::create([
                 'id_shiftrequest' => $request->id,
@@ -96,7 +121,7 @@ class RequestApproval
             }
             $request->save();
 
-            $this->notify($user, $request, $step, $approve);
+            $this->notify($user, $request, $step, $approve, $date);
         });
     }
 
@@ -110,7 +135,9 @@ class RequestApproval
         $awaiting = $this->awaitingStep($request);
 
         $leaderStep = match (true) {
-            ! $this->needsLeader($request) => ['skipped', 'Tidak diperlukan'],
+            ! $this->needsLeader($request) => ['skipped', $request->employee->user->hasRole(Role::KARYAWAN)
+                ? 'Tidak ada Leader pada jadwal ini'
+                : 'Tidak diperlukan'],
             $leaderLog !== null => [$this->logState($leaderLog), $this->logMeta($leaderLog)],
             $awaiting === self::STEP_LEADER => ['active', 'Menunggu verifikasi'],
             default => ['waiting', 'Belum dimulai'],
@@ -140,24 +167,37 @@ class RequestApproval
         return $log->approver?->name.' · '.$log->created_at->translatedFormat('j M, H.i');
     }
 
-    private function notify(User $actor, ShiftRequest $request, ?string $step, bool $approve): void
+    private function notify(User $actor, ShiftRequest $request, ?string $step, bool $approve, ?Carbon $date): void
     {
         $type = mb_strtolower($request->type_label);
         $requester = $request->employee;
+        $when = $date ? ' pada '.$date->copy()->locale('id')->translatedFormat('l, j M Y') : '';
 
         if (! $approve) {
-            $this->notice($requester, $request, "Pengajuan {$type} Anda ditolak oleh {$actor->name}");
-        } elseif ($step === self::STEP_SUPERVISOR) {
-            $this->notice($requester, $request, "Pengajuan {$type} Anda disetujui oleh {$actor->name}");
-        } else {
-            $this->notice($requester, $request,
-                "Pengajuan {$type} Anda sudah diverifikasi {$actor->name}, menunggu keputusan Supervisor");
+            $this->notice($requester, $request, "Pengajuan {$type} Anda{$when} ditolak oleh {$actor->name}");
 
-            Employee::whereHas('user.role', fn ($q) => $q->where('name', Role::SUPERVISOR))
-                ->get()
-                ->each(fn (Employee $supervisor) => $this->notice($supervisor, $request,
-                    "Pengajuan {$type} dari {$requester->user->name} menunggu keputusan Anda"));
+            return;
         }
+
+        if ($step === self::STEP_SUPERVISOR) {
+            $this->notice($requester, $request, "Pengajuan {$type} Anda{$when} disetujui oleh {$actor->name}");
+
+            if ($request->partner_id !== null) {
+                $request->loadMissing('partner.user');
+                $this->notice($request->partner, $request,
+                    "Jadwal Anda{$when} ditukar dengan {$requester->user->name}");
+            }
+
+            return;
+        }
+
+        $this->notice($requester, $request,
+            "Pengajuan {$type} Anda{$when} sudah diverifikasi {$actor->name}, menunggu keputusan Supervisor");
+
+        Employee::whereHas('user.role', fn ($q) => $q->where('name', Role::SUPERVISOR))
+            ->get()
+            ->each(fn (Employee $supervisor) => $this->notice($supervisor, $request,
+                "Pengajuan {$type} dari {$requester->user->name}{$when} menunggu keputusan Anda"));
     }
 
     private function notice(Employee $to, ShiftRequest $request, string $message): void
