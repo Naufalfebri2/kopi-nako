@@ -4,19 +4,25 @@ namespace App\Http\Controllers;
 
 use App\Enums\RequestStatus;
 use App\Http\Controllers\Controller;
+use App\Models\LeaveType;
 use App\Models\Role;
 use App\Models\ShiftRequest;
 use App\Models\User;
 use App\Services\RequestApproval;
+use App\Services\RequestSubmission;
+use DomainException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\View\View;
 
 class ShiftRequestController extends Controller
 {
-    public function __construct(private RequestApproval $approval)
-    {
+    public function __construct(
+        private RequestApproval $approval,
+        private RequestSubmission $submission,
+    ) {
     }
 
     public function index(Request $request): View
@@ -24,38 +30,44 @@ class ShiftRequestController extends Controller
         $user = $request->user();
         $scoped = $this->scopedQuery($user);
 
-        $counts = (clone $scoped)->toBase()
-            ->selectRaw('status, count(*) as total')
-            ->groupBy('status')
-            ->pluck('total', 'status');
-
-        $requests = (clone $scoped)
-            ->with(['employee.user.role', 'schedule.masterShift', 'partnerSchedule.masterShift', 'leaveType'])
-            ->when(
-                RequestStatus::tryFrom((string) $request->query('status')),
-                fn ($query, $status) => $query->where('status', $status)
-            )
-            ->when($request->query('jenis') === 'izin', fn ($query) => $query->whereNotNull('leave_id'))
-            ->when($request->query('jenis') === 'tukar', fn ($query) => $query->whereNotNull('partner_id'))
-            ->latest('id')
-            ->paginate(10)
-            ->withQueryString();
-
         $actionableIds = $this->approval->pendingFor($user)->pluck('id');
         $isSupervisor = $user->hasRole(Role::SUPERVISOR);
 
         return view('pengajuan.index', [
-            'requests' => $requests,
-            'stats' => [
-                'total' => $counts->sum(),
-                'disetujui' => $counts->get(RequestStatus::Disetujui->value, 0),
-                'ditolak' => $counts->get(RequestStatus::Ditolak->value, 0),
-                'menunggu' => $counts->get(RequestStatus::Menunggu->value, 0),
-            ],
+            'requests' => $this->listing($request, $scoped),
+            'stats' => $this->stats($scoped),
             'actionableIds' => $actionableIds,
             'isSupervisor' => $isSupervisor,
             'readyCount' => $isSupervisor ? $actionableIds->count() : 0,
+            'leaveTypes' => LeaveType::orderBy('name')->get(),
+        ] + $this->submitData($user));
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'jenis' => ['required', 'in:izin,tukar'],
+            'detail_id' => ['required', 'integer'],
+            'leave_id' => ['required_if:jenis,izin', 'nullable', 'integer', 'exists:leave_type,id'],
+            'partner_detail_id' => ['required_if:jenis,tukar', 'nullable', 'integer'],
+            'reason' => ['required', 'string', 'min:10', 'max:500'],
+        ], [
+            'jenis.required' => 'Pilih jenis pengajuan.',
+            'detail_id.required' => 'Pilih jadwal Anda.',
+            'leave_id.required_if' => 'Pilih jenis izin.',
+            'partner_detail_id.required_if' => 'Pilih rekan untuk tukar shift.',
+            'reason.required' => 'Alasan wajib diisi.',
+            'reason.min' => 'Alasan minimal 10 karakter.',
+            'reason.max' => 'Alasan maksimal 500 karakter.',
         ]);
+
+        try {
+            $this->submission->submit($request->user(), $data);
+        } catch (DomainException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('pengajuan.index')->with('notice', 'Pengajuan berhasil dikirim.');
     }
 
     // Isi panel detail (dimuat lewat fetch)
@@ -65,7 +77,7 @@ class ShiftRequestController extends Controller
         abort_unless($this->approval->canView($user, $shiftRequest), 403);
 
         $shiftRequest->load([
-            'employee.user.role', 'schedule.masterShift',
+            'employee.user.role', 'schedule.masterShift', 'schedule.firstDetail',
             'partner.user', 'partnerSchedule.masterShift', 'leaveType',
         ]);
 
@@ -86,11 +98,17 @@ class ShiftRequestController extends Controller
 
         $approve = $data['keputusan'] === 'setujui';
         $step = $this->approval->awaitingStep($shiftRequest);
-        $this->approval->decide($user, $shiftRequest, $approve);
+
+        try {
+            $this->approval->decide($user, $shiftRequest, $approve);
+        } catch (DomainException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         $notice = match (true) {
             ! $approve => 'Pengajuan ditolak.',
             $step === RequestApproval::STEP_LEADER => 'Pengajuan diverifikasi dan diteruskan ke Supervisor.',
+            $shiftRequest->partner_id !== null => 'Pengajuan disetujui dan jadwal kedua karyawan ditukar.',
             default => 'Pengajuan disetujui.',
         };
 
@@ -103,13 +121,86 @@ class ShiftRequestController extends Controller
         abort_unless($user->hasRole(Role::SUPERVISOR), 403);
 
         $items = $this->approval->pendingFor($user);
+        $approved = 0;
+        $failed = 0;
+
         foreach ($items as $item) {
-            $this->approval->decide($user, $item, true);
+            try {
+                $this->approval->decide($user, $item, true);
+                $approved++;
+            } catch (DomainException) {
+                $failed++;
+            }
         }
 
-        return back()->with('notice', $items->isEmpty()
+        $notice = $items->isEmpty()
             ? 'Tidak ada pengajuan yang siap disetujui.'
-            : "{$items->count()} pengajuan disetujui.");
+            : "{$approved} pengajuan disetujui.".($failed ? " {$failed} gagal karena jadwal sudah berubah." : '');
+
+        return back()->with('notice', $notice);
+    }
+
+    // Daftar pengajuan dengan filter status, jenis, dan bulan, 10 per halaman
+    private function listing(Request $request, Builder $scoped): LengthAwarePaginator
+    {
+        $range = $this->monthRange($request->query('bulan'));
+
+        return (clone $scoped)
+            ->with([
+                'employee.user.role', 'schedule.masterShift', 'schedule.firstDetail',
+                'partnerSchedule.masterShift', 'leaveType',
+            ])
+            ->when(
+                RequestStatus::tryFrom((string) $request->query('status')),
+                fn ($query, $status) => $query->where('status', $status)
+            )
+            ->when($request->query('jenis') === 'izin', fn ($query) => $query->whereNotNull('leave_id'))
+            ->when($request->query('jenis') === 'tukar', fn ($query) => $query->whereNotNull('partner_id'))
+            ->when($range, fn ($query, $between) => $query->whereBetween('created_at', $between))
+            ->latest('id')
+            ->paginate(10)
+            ->withQueryString();
+    }
+
+    // Jumlah pengajuan per status untuk kartu ringkasan
+    private function stats(Builder $scoped): array
+    {
+        $counts = (clone $scoped)->toBase()
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        return [
+            'total' => $counts->sum(),
+            'disetujui' => $counts->get(RequestStatus::Disetujui->value, 0),
+            'ditolak' => $counts->get(RequestStatus::Ditolak->value, 0),
+            'menunggu' => $counts->get(RequestStatus::Menunggu->value, 0),
+        ];
+    }
+
+    // Rentang tanggal untuk filter bulan, atau null bila tidak difilter
+    private function monthRange(?string $month): ?array
+    {
+        return match ($month) {
+            'ini' => [now()->startOfMonth(), now()->endOfMonth()],
+            'lalu' => [now()->subMonthNoOverflow()->startOfMonth(), now()->subMonthNoOverflow()->endOfMonth()],
+            default => null,
+        };
+    }
+
+    // Data untuk form Ajukan Baru: jadwal milik pengguna dan rekan yang bisa diajak tukar
+    private function submitData(User $user): array
+    {
+        $canSubmit = $user->employee !== null;
+        $options = $canSubmit ? $this->submission->options($user->employee) : collect();
+
+        return [
+            'canSubmit' => $canSubmit,
+            'options' => $options,
+            'submitMap' => $options->mapWithKeys(fn (array $option) => [
+                $option['id'] => ['canSwap' => $option['canSwap'], 'partners' => $option['partners']],
+            ])->all(),
+        ];
     }
 
     // Karyawan hanya melihat pengajuannya sendiri

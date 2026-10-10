@@ -1,3 +1,7 @@
+@php
+    $fmt = fn($date, $format = 'j M Y') => $date ? $date->copy()->locale('id')->translatedFormat($format) : '—';
+@endphp
+
 <div class="kn-drawer-scroll">
     <div class="d-flex align-items-center gap-3 mb-4">
         <span class="kn-avatar kn-avatar-lg">{{ $req->employee->user->initials }}</span>
@@ -12,6 +16,8 @@
         @if ($req->leaveType)
             <div class="kn-info-row"><span>Jenis Izin</span><span>{{ $req->leaveType->name }}</span></div>
         @endif
+        <div class="kn-info-row"><span>Diajukan</span><span>{{ $fmt($req->created_at, 'j M Y, H.i') }}</span></div>
+        <div class="kn-info-row"><span>Tanggal Shift</span><span>{{ $fmt($req->shift_date, 'l, j M Y') }}</span></div>
         <div class="kn-info-row"><span>Shift Asal</span><span>{{ $req->source_shift_name }}</span></div>
         @if ($req->partner_id)
             <div class="kn-info-row"><span>Tukar dengan</span><span>{{ $req->partner?->user?->name }}</span></div>

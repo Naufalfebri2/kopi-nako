@@ -8,12 +8,30 @@
 @endpush
 
 @section('content')
-    <h1 class="kn-page-title">Pengajuan Izin / Tukar Shift</h1>
-    <div class="kn-page-sub mb-4">Riwayat lengkap dan status persetujuan pengajuan karyawan</div>
+    @php
+        $fmt = fn($date) => $date ? $date->copy()->locale('id')->translatedFormat('j M Y') : '—';
+    @endphp
+
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-4">
+        <div>
+            <h1 class="kn-page-title">Pengajuan Izin / Tukar Shift</h1>
+            <div class="kn-page-sub">Riwayat lengkap dan status persetujuan pengajuan karyawan</div>
+        </div>
+        @if ($canSubmit)
+            <button type="button" class="btn-kn" id="openSubmit">+ Ajukan Baru</button>
+        @endif
+    </div>
 
     @if (session('notice'))
         <div class="alert kn-alert alert-dismissible fade show" role="alert">
             {{ session('notice') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Tutup"></button>
+        </div>
+    @endif
+
+    @if (session('error'))
+        <div class="alert alert-danger alert-dismissible fade show small" role="alert">
+            {{ session('error') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Tutup"></button>
         </div>
     @endif
@@ -48,6 +66,11 @@
                 <option value="izin" @selected(request('jenis') === 'izin')>Izin</option>
                 <option value="tukar" @selected(request('jenis') === 'tukar')>Tukar Shift</option>
             </select>
+            <select name="bulan" class="form-select kn-filter" onchange="this.form.submit()">
+                <option value="">Semua Bulan</option>
+                <option value="ini" @selected(request('bulan') === 'ini')>Bulan Ini</option>
+                <option value="lalu" @selected(request('bulan') === 'lalu')>Bulan Lalu</option>
+            </select>
         </form>
 
         @if ($isSupervisor)
@@ -68,6 +91,8 @@
                     <tr>
                         <th class="ps-4">Karyawan</th>
                         <th>Jenis</th>
+                        <th>Tanggal Diajukan</th>
+                        <th>Tanggal Shift</th>
                         <th>Shift Asal</th>
                         <th>Shift Tujuan</th>
                         <th>Status</th>
@@ -87,6 +112,8 @@
                                 </div>
                             </td>
                             <td>{{ $req->type_label }}</td>
+                            <td>{{ $fmt($req->created_at) }}</td>
+                            <td>{{ $fmt($req->shift_date) }}</td>
                             <td>{{ $req->source_shift_name }}</td>
                             <td>{{ $req->target_shift_name }}</td>
                             <td>
@@ -99,7 +126,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="kn-empty">Belum ada pengajuan.</td>
+                            <td colspan="8" class="kn-empty">Belum ada pengajuan.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -116,6 +143,10 @@
         </div>
         <div class="offcanvas-body" id="detailBody"></div>
     </div>
+
+    @if ($canSubmit)
+        @include('pengajuan._ajukan')
+    @endif
 @endsection
 
 @push('scripts')

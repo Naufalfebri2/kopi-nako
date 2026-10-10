@@ -24,6 +24,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/jadwal/{detail}', [ScheduleController::class, 'destroy'])->name('jadwal.destroy');
 
     Route::get('/pengajuan', [ShiftRequestController::class, 'index'])->name('pengajuan.index');
+    Route::post('/pengajuan', [ShiftRequestController::class, 'store'])->name('pengajuan.store');
     Route::post('/pengajuan/setujui-semua', [ShiftRequestController::class, 'approveAll'])->name('pengajuan.approve-all');
     Route::get('/pengajuan/{shiftRequest}', [ShiftRequestController::class, 'show'])->name('pengajuan.show');
     Route::post('/pengajuan/{shiftRequest}/keputusan', [ShiftRequestController::class, 'decide'])->name('pengajuan.decide');
