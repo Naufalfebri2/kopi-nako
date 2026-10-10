@@ -8,6 +8,7 @@ use App\Models\LeaveType;
 use App\Models\LogRequest;
 use App\Models\ShiftSchedule;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
 class ShiftRequest extends Model
@@ -18,7 +19,10 @@ class ShiftRequest extends Model
         'employee_id', 'schedule_id', 'leave_id', 'partner_id',
         'partner_schedule_id', 'status', 'reason', 'created_by',
     ];
-    protected $casts = ['status' => RequestStatus::class];
+    protected $casts = [
+        'status' => RequestStatus::class,
+        'created_at' => 'datetime',
+    ];
 
     public function employee()
     {
@@ -73,5 +77,10 @@ class ShiftRequest extends Model
     public function getTargetShiftNameAttribute(): string
     {
         return $this->partnerSchedule?->masterShift?->name ?? '—';
+    }
+
+    public function getShiftDateAttribute(): ?Carbon
+    {
+        return $this->schedule?->shift_date;
     }
 }

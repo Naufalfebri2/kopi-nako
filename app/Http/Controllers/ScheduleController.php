@@ -109,6 +109,10 @@ class ScheduleController extends Controller
     {
         abort_unless($request->user()->hasRole(Role::SUPERVISOR), 403);
 
+        if ($error = $this->schedules->removeError($detail)) {
+            return back()->with('error', $error);
+        }
+
         $this->schedules->remove($detail);
 
         return back()->with('notice', 'Jadwal berhasil dihapus.');

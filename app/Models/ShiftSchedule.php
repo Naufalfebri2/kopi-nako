@@ -6,6 +6,7 @@ use App\Models\MasterShift;
 use App\Models\ShiftRequest;
 use App\Models\ShiftScheduleDetail;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 
 class ShiftSchedule extends Model
@@ -30,8 +31,19 @@ class ShiftSchedule extends Model
         return $this->hasMany(ShiftScheduleDetail::class, 'id_schedule');
     }
 
+    public function firstDetail()
+    {
+        return $this->hasOne(ShiftScheduleDetail::class, 'id_schedule')->oldestOfMany();
+    }
+
     public function requests()
     {
         return $this->hasMany(ShiftRequest::class, 'schedule_id');
+    }
+
+    // Satu jadwal adalah satu shift pada satu tanggal, jadi semua detailnya bertanggal sama
+    public function getShiftDateAttribute(): ?Carbon
+    {
+        return $this->firstDetail?->date;
     }
 }
