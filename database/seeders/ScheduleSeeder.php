@@ -23,20 +23,23 @@ class ScheduleSeeder extends Seeder
     public function run(): void
     {
         $supervisor = User::where('email', 'juandi@kopinako.test')->firstOrFail();
-
-        $schedules = [];
-        foreach (MasterShift::all() as $shift) {
-            $schedules[$shift->name] = ShiftSchedule::firstOrCreate(
-                ['shift_id' => $shift->id],
-                ['status' => 'terbit', 'publish_by' => $supervisor->id],
-            );
-        }
+        $shifts = MasterShift::all()->keyBy('name');
 
         $staff = Employee::with('user.role')->orderBy('id')->get()
             ->reject(fn (Employee $employee) => $employee->user->hasRole(Role::SUPERVISOR))
             ->values();
 
         $start = now()->startOfWeek();
+
+        // Satu baris jadwal = satu shift pada satu tanggal
+        $rosters = [];
+        $roster = function (string $shift, string $date) use (&$rosters, $shifts, $supervisor): ShiftSchedule {
+            return $rosters[$date][$shift] ??= ShiftSchedule::create([
+                'shift_id' => $shifts[$shift]->id,
+                'status' => 'terbit',
+                'publish_by' => $supervisor->id,
+            ]);
+        };
 
         foreach ($staff as $i => $employee) {
             $leaderShift = self::LEADERS[Str::before($employee->user->email, '@')] ?? null;
@@ -48,11 +51,13 @@ class ScheduleSeeder extends Seeder
                     continue;
                 }
 
+                $date = $start->copy()->addDays($day)->toDateString();
+
                 ShiftScheduleDetail::create([
-                    'id_schedule' => $schedules[$shift]->id,
+                    'id_schedule' => $roster($shift, $date)->id,
                     'id_employee' => $employee->id,
                     'status_lead' => $leaderShift !== null,
-                    'date' => $start->copy()->addDays($day)->toDateString(),
+                    'date' => $date,
                 ]);
             }
         }
