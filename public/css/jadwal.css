@@ -221,3 +221,34 @@
 .kn-delete-btn {
     color: var(--accent-deep);
 }
+
+.kn-emp-actions {
+    display: inline-flex;
+    gap: 6px;
+    margin-left: auto;
+}
+.kn-icon-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid #e6e0d8;
+    border-radius: 8px;
+    background: #fff;
+    color: #6b635b;
+    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+.kn-icon-btn:hover {
+    background: #f7f5f2;
+    color: #1a1714;
+}
+.kn-icon-btn-danger:hover {
+    color: #b3261e;
+    border-color: #b3261e;
+}
+.kn-icon-btn:focus-visible {
+    outline: 2px solid #b4763a;
+    outline-offset: 2px;
+}

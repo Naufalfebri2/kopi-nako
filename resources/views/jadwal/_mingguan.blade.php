@@ -23,6 +23,9 @@
                                     <div class="fw-semibold small">{{ $employee->user->name }}</div>
                                     <div class="kn-muted small">{{ $employee->job?->name }}</div>
                                 </div>
+                                @if ($canEdit)
+                                    @include('jadwal._karyawan-actions', ['employee' => $employee])
+                                @endif
                             </div>
                         </td>
                         @foreach ($row['cells'] as $i => $detail)
@@ -82,5 +85,6 @@
 @if ($canEdit)
     <div class="kn-muted small mt-2">
         Klik sel Libur untuk menugaskan karyawan. Klik sel yang berisi shift untuk mengubah atau menghapusnya.
+        Gunakan ikon pensil dan tempat sampah di samping nama untuk mengubah atau menghapus karyawan.
     </div>
 @endif

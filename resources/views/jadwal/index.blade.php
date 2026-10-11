@@ -64,6 +64,7 @@
     @if ($canEdit)
         @include('jadwal._assign-modal')
         @include('jadwal._edit-modal')
+        @include('jadwal._karyawan-modal')
     @endif
 @endsection
 
