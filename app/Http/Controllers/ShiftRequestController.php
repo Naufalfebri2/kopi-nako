@@ -106,7 +106,9 @@ class ShiftRequestController extends Controller
         }
 
         $notice = match (true) {
+            ! $approve && $step === RequestApproval::STEP_PARTNER => 'Anda menolak tukar shift. Pengajuan ditolak.',
             ! $approve => 'Pengajuan ditolak.',
+            $step === RequestApproval::STEP_PARTNER => 'Anda menyetujui tukar shift. Pengajuan diteruskan ke tahap berikutnya.',
             $step === RequestApproval::STEP_LEADER => 'Pengajuan diverifikasi dan diteruskan ke Supervisor.',
             $shiftRequest->partner_id !== null => 'Pengajuan disetujui dan jadwal kedua karyawan ditukar.',
             default => 'Pengajuan disetujui.',
@@ -203,12 +205,16 @@ class ShiftRequestController extends Controller
         ];
     }
 
-    // Karyawan hanya melihat pengajuannya sendiri
+    // Karyawan melihat pengajuannya sendiri dan pengajuan yang menunjuknya sebagai rekan tukar
     private function scopedQuery(User $user): Builder
     {
+        $employeeId = $user->employee?->id ?? 0;
+
         return ShiftRequest::query()->when(
             $user->hasRole(Role::KARYAWAN),
-            fn ($query) => $query->where('employee_id', $user->employee?->id ?? 0)
+            fn ($query) => $query->where(fn ($q) => $q
+                ->where('employee_id', $employeeId)
+                ->orWhere('partner_id', $employeeId))
         );
     }
 }

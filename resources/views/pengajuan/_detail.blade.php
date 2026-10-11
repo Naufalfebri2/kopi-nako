@@ -1,5 +1,22 @@
 @php
     $fmt = fn($date, $format = 'j M Y') => $date ? $date->copy()->locale('id')->translatedFormat($format) : '—';
+
+    $isPartnerViewer = $req->partner_id !== null && auth()->user()->employee?->id === $req->partner_id;
+
+    $confirmApprove = match ($awaiting) {
+        'partner' => 'Setujui tukar shift ini? Pengajuan akan diteruskan ke tahap berikutnya.',
+        'leader' => 'Verifikasi pengajuan ini dan teruskan ke Supervisor?',
+        default => 'Setujui pengajuan ini?',
+    };
+
+    $confirmReject =
+        $awaiting === 'partner' ? 'Tolak tukar shift ini? Pengajuan akan langsung ditolak.' : 'Tolak pengajuan ini?';
+
+    $approveLabel = match ($awaiting) {
+        'partner' => 'Setuju Tukar',
+        'leader' => 'Verifikasi',
+        default => 'Setujui',
+    };
 @endphp
 
 <div class="kn-drawer-scroll">
@@ -10,6 +27,14 @@
             <div class="kn-muted small">{{ $req->employee->user->role?->name }}</div>
         </div>
     </div>
+
+    @if ($isPartnerViewer && $awaiting === 'partner')
+        <div class="alert kn-alert small mb-4" role="status">
+            {{ $req->employee->user->name }} meminta Anda menukar shift pada
+            {{ $fmt($req->shift_date, 'l, j M Y') }}.
+            Pengajuan baru diteruskan ke Leader/Head dan Supervisor setelah Anda setuju.
+        </div>
+    @endif
 
     <div class="kn-info mb-4">
         <div class="kn-info-row"><span>Jenis Pengajuan</span><span>{{ $req->type_label }}</span></div>
@@ -26,6 +51,7 @@
         <div class="kn-info-row"><span>Status</span><span><x-status-dot :status="$req->status" /></span></div>
     </div>
 
+    <div class="kn-section-label small fw-semibold mb-2">Proses Persetujuan</div>
     <div class="kn-stepper mb-4">
         @foreach ($steps as $step)
             <div class="kn-step">
@@ -66,17 +92,16 @@
 <div class="kn-drawer-footer">
     @if ($canDecide)
         <form method="POST" action="{{ route('pengajuan.decide', $req) }}" class="flex-fill"
-            onsubmit="return confirm('Tolak pengajuan ini?')">
+            onsubmit="return confirm('{{ $confirmReject }}')">
             @csrf
             <input type="hidden" name="keputusan" value="tolak">
             <button type="submit" class="btn-kn-outline w-100" style="color: var(--accent-deep);">Tolak</button>
         </form>
         <form method="POST" action="{{ route('pengajuan.decide', $req) }}" class="flex-fill"
-            onsubmit="return confirm('{{ $awaiting === 'leader' ? 'Verifikasi pengajuan ini dan teruskan ke Supervisor?' : 'Setujui pengajuan ini?' }}')">
+            onsubmit="return confirm('{{ $confirmApprove }}')">
             @csrf
             <input type="hidden" name="keputusan" value="setujui">
-            <button type="submit"
-                class="btn-kn w-100">{{ $awaiting === 'leader' ? 'Verifikasi' : 'Setujui' }}</button>
+            <button type="submit" class="btn-kn w-100">{{ $approveLabel }}</button>
         </form>
     @else
         <button type="button" class="btn-kn-outline flex-fill" data-bs-dismiss="offcanvas">Tutup</button>

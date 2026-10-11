@@ -12,16 +12,17 @@ use App\Models\ShiftRequest;
 use App\Models\ShiftScheduleDetail;
 use App\Models\User;
 use Carbon\Carbon;
+use DomainException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
-
 class RequestApproval
 {
+    public const STEP_PARTNER = 'partner';
     public const STEP_LEADER = 'leader';
     public const STEP_SUPERVISOR = 'supervisor';
 
-    private const RELATIONS = ['employee.user.role', 'logs.approver.role'];
+    private const RELATIONS = ['employee.user.role', 'partner.user', 'logs.approver.role'];
 
     public function __construct(private ScheduleService $schedules)
     {
@@ -53,19 +54,21 @@ class RequestApproval
             return null;
         }
 
-        $leaderDone = $request->logs->contains(
-            fn (LogRequest $log) => $log->approver?->hasRole(Role::LEADER)
-        );
+        if ($this->partnerPending($request)) {
+            return self::STEP_PARTNER;
+        }
 
-        return $this->needsLeader($request) && ! $leaderDone
+        return $this->needsLeader($request) && $this->leaderLog($request) === null
             ? self::STEP_LEADER
             : self::STEP_SUPERVISOR;
     }
 
+    // Karyawan boleh melihat pengajuan miliknya, atau yang menunjuk dirinya sebagai rekan tukar
     public function canView(User $user, ShiftRequest $request): bool
     {
         return ! $user->hasRole(Role::KARYAWAN)
-            || $request->employee_id === $user->employee?->id;
+            || $request->employee_id === $user->employee?->id
+            || ($request->partner_id !== null && $request->partner_id === $user->employee?->id);
     }
 
     public function canDecide(User $user, ShiftRequest $request): bool
@@ -76,11 +79,18 @@ class RequestApproval
             return false;
         }
 
+        $isPartner = $request->partner_id !== null
+            && $user->employee !== null
+            && (int) $user->employee->id === (int) $request->partner_id;
+
+        // Rekan tukar hanya memutuskan di tahapnya sendiri, tidak di tahap Leader atau Supervisor.
         return match ($this->awaitingStep($request)) {
-            self::STEP_LEADER => $user->hasRole(Role::LEADER)
+            self::STEP_PARTNER => $isPartner,
+            self::STEP_LEADER => ! $isPartner
+                && $user->hasRole(Role::LEADER)
                 && $user->employee !== null
                 && $this->leaderEmployeeIds($request)->contains($user->employee->id),
-            self::STEP_SUPERVISOR => $user->hasRole(Role::SUPERVISOR),
+            self::STEP_SUPERVISOR => ! $isPartner && $user->hasRole(Role::SUPERVISOR),
             default => false,
         };
     }
@@ -102,8 +112,14 @@ class RequestApproval
 
         DB::transaction(function () use ($user, $request, $approve) {
             $step = $this->awaitingStep($request);
+
+            if ($step === null) {
+                throw new DomainException('Pengajuan ini sudah diputuskan.');
+            }
+
             $date = $request->shift_date; // dibaca sebelum jadwal ditukar
 
+            // Jadwal baru ditukar saat Supervisor menyetujui, setelah rekan dan Leader setuju.
             if ($approve && $step === self::STEP_SUPERVISOR && $request->partner_id !== null) {
                 $this->schedules->swapAssignments($request);
             }
@@ -113,6 +129,7 @@ class RequestApproval
                 'approve_by' => $user->id,
                 'status' => $approve ? RequestStatus::Disetujui : RequestStatus::Ditolak,
             ]);
+            $request->load('logs.approver.role');
 
             if (! $approve) {
                 $request->status = RequestStatus::Ditolak;
@@ -130,31 +147,90 @@ class RequestApproval
     {
         $request->loadMissing(self::RELATIONS);
 
-        $leaderLog = $request->logs->first(fn (LogRequest $l) => $l->approver?->hasRole(Role::LEADER));
-        $supervisorLog = $request->logs->first(fn (LogRequest $l) => $l->approver?->hasRole(Role::SUPERVISOR));
         $awaiting = $this->awaitingStep($request);
+        $rejected = $request->status === RequestStatus::Ditolak;
+        $partnerLog = $this->partnerLog($request);
+        $leaderLog = $this->leaderLog($request);
+        $supervisorLog = $this->supervisorLog($request);
 
-        $leaderStep = match (true) {
+        $steps = [[
+            'title' => 'Diajukan',
+            'state' => 'done',
+            'meta' => $request->employee->user->name
+                .($request->created_at ? ' · '.$request->created_at->translatedFormat('j M, H.i') : ''),
+        ]];
+
+        if ($request->partner_id !== null) {
+            $partnerName = $request->partner?->user?->name ?? 'rekan tukar';
+
+            [$state, $meta] = match (true) {
+                $partnerLog !== null => [$this->logState($partnerLog), $this->logMeta($partnerLog)],
+                $awaiting === self::STEP_PARTNER => ['active', "Menunggu persetujuan {$partnerName}"],
+                default => ['skipped', 'Tidak tercatat'], // pengajuan lama, sebelum ada tahap rekan
+            };
+
+            $steps[] = ['title' => 'Persetujuan Rekan Tukar', 'state' => $state, 'meta' => $meta];
+        }
+
+        [$state, $meta] = match (true) {
             ! $this->needsLeader($request) => ['skipped', $request->employee->user->hasRole(Role::KARYAWAN)
                 ? 'Tidak ada Leader pada jadwal ini'
                 : 'Tidak diperlukan'],
             $leaderLog !== null => [$this->logState($leaderLog), $this->logMeta($leaderLog)],
             $awaiting === self::STEP_LEADER => ['active', 'Menunggu verifikasi'],
+            $rejected => ['waiting', 'Tidak dilanjutkan'],
             default => ['waiting', 'Belum dimulai'],
         };
+        $steps[] = ['title' => 'Verifikasi Leader/Head', 'state' => $state, 'meta' => $meta];
 
-        $supervisorStep = match (true) {
+        [$state, $meta] = match (true) {
             $supervisorLog !== null => [$this->logState($supervisorLog), $this->logMeta($supervisorLog)],
             $awaiting === self::STEP_SUPERVISOR => ['active', 'Menunggu keputusan'],
-            $request->status === RequestStatus::Ditolak => ['waiting', 'Tidak dilanjutkan'],
+            $rejected => ['waiting', 'Tidak dilanjutkan'],
+            $awaiting === self::STEP_PARTNER => ['waiting', 'Menunggu persetujuan rekan tukar'],
             default => ['waiting', 'Menunggu verifikasi Leader/Head'],
         };
+        $steps[] = ['title' => 'Keputusan Supervisor', 'state' => $state, 'meta' => $meta];
 
-        return [
-            ['title' => 'Diajukan', 'state' => 'done', 'meta' => $request->employee->user->name],
-            ['title' => 'Verifikasi Leader/Head', 'state' => $leaderStep[0], 'meta' => $leaderStep[1]],
-            ['title' => 'Keputusan Supervisor', 'state' => $supervisorStep[0], 'meta' => $supervisorStep[1]],
-        ];
+        return $steps;
+    }
+
+    // Tahap rekan masih ditunggu bila ada rekan dan belum ada satu pun keputusan.
+    // Pengajuan lama yang sudah diproses tanpa tahap rekan tidak ditarik mundur.
+    private function partnerPending(ShiftRequest $request): bool
+    {
+        return $request->partner_id !== null && $request->logs->isEmpty();
+    }
+
+    // Log milik rekan dikenali dari akunnya, bukan dari role, karena rekan bisa berrole apa pun.
+    private function partnerLog(ShiftRequest $request): ?LogRequest
+    {
+        $partnerUserId = $request->partner?->id_user;
+
+        if ($request->partner_id === null || $partnerUserId === null) {
+            return null;
+        }
+
+        return $request->logs->first(fn (LogRequest $log) => (int) $log->approve_by === (int) $partnerUserId);
+    }
+
+    private function leaderLog(ShiftRequest $request): ?LogRequest
+    {
+        return $this->nonPartnerLogs($request)
+            ->first(fn (LogRequest $log) => $log->approver?->hasRole(Role::LEADER));
+    }
+
+    private function supervisorLog(ShiftRequest $request): ?LogRequest
+    {
+        return $this->nonPartnerLogs($request)
+            ->first(fn (LogRequest $log) => $log->approver?->hasRole(Role::SUPERVISOR));
+    }
+
+    private function nonPartnerLogs(ShiftRequest $request): Collection
+    {
+        $partnerLog = $this->partnerLog($request);
+
+        return $request->logs->reject(fn (LogRequest $log) => $partnerLog !== null && $log->id === $partnerLog->id);
     }
 
     private function logState(LogRequest $log): string
@@ -174,7 +250,8 @@ class RequestApproval
         $when = $date ? ' pada '.$date->copy()->locale('id')->translatedFormat('l, j M Y') : '';
 
         if (! $approve) {
-            $this->notice($requester, $request, "Pengajuan {$type} Anda{$when} ditolak oleh {$actor->name}");
+            $by = $step === self::STEP_PARTNER ? "{$actor->name} (rekan tukar)" : $actor->name;
+            $this->notice($requester, $request, "Pengajuan {$type} Anda{$when} ditolak oleh {$by}");
 
             return;
         }
@@ -183,7 +260,6 @@ class RequestApproval
             $this->notice($requester, $request, "Pengajuan {$type} Anda{$when} disetujui oleh {$actor->name}");
 
             if ($request->partner_id !== null) {
-                $request->loadMissing('partner.user');
                 $this->notice($request->partner, $request,
                     "Jadwal Anda{$when} ditukar dengan {$requester->user->name}");
             }
@@ -191,13 +267,21 @@ class RequestApproval
             return;
         }
 
-        $this->notice($requester, $request,
-            "Pengajuan {$type} Anda{$when} sudah diverifikasi {$actor->name}, menunggu keputusan Supervisor");
+        $next = $this->needsLeader($request) && $this->leaderLog($request) === null
+            ? 'verifikasi Leader/Head'
+            : 'keputusan Supervisor';
+        $who = $step === self::STEP_PARTNER ? "disetujui rekan tukar {$actor->name}" : "sudah diverifikasi {$actor->name}";
 
-        Employee::whereHas('user.role', fn ($q) => $q->where('name', Role::SUPERVISOR))
-            ->get()
-            ->each(fn (Employee $supervisor) => $this->notice($supervisor, $request,
-                "Pengajuan {$type} dari {$requester->user->name}{$when} menunggu keputusan Anda"));
+        $this->notice($requester, $request, "Pengajuan {$type} Anda{$when} {$who}, menunggu {$next}");
+
+        $recipients = $next === 'verifikasi Leader/Head'
+            ? Employee::whereIn('id', $this->leaderEmployeeIds($request))->get()
+            : Employee::whereHas('user.role', fn ($q) => $q->where('name', Role::SUPERVISOR))->get();
+
+        $recipients->each(fn (Employee $to) => $this->notice($to, $request,
+            "Pengajuan {$type} dari {$requester->user->name}{$when} menunggu ".($next === 'verifikasi Leader/Head'
+                ? 'verifikasi Anda'
+                : 'keputusan Anda')));
     }
 
     private function notice(Employee $to, ShiftRequest $request, string $message): void

@@ -172,8 +172,17 @@ class RequestSubmission
     private function notifySubmitted(Employee $employee, ShiftRequest $request, ShiftScheduleDetail $own, ?ShiftScheduleDetail $partner): void
     {
         $employee->loadMissing('user');
-        $type = $partner ? 'tukar shift' : 'izin';
         $date = $own->date->copy()->locale('id')->translatedFormat('l, j M Y');
+
+        // Tukar shift: tahap pertama adalah rekan. Leader dan Supervisor baru diberi tahu
+        // oleh RequestApproval setelah rekan menyetujui.
+        if ($partner) {
+            $this->notice($partner->employee, $request,
+                "{$employee->user->name} mengajukan tukar shift dengan Anda pada {$date}, menunggu persetujuan Anda");
+
+            return;
+        }
+
         $toLeader = $this->approval->needsLeader($request);
 
         $recipients = $toLeader
@@ -185,12 +194,7 @@ class RequestSubmission
         $recipients
             ->reject(fn (Employee $recipient) => $recipient->id === $employee->id)
             ->each(fn (Employee $recipient) => $this->notice($recipient, $request,
-                "{$employee->user->name} mengajukan {$type} untuk {$date}, menunggu {$action}"));
-
-        if ($partner) {
-            $this->notice($partner->employee, $request,
-                "{$employee->user->name} mengajukan tukar shift dengan Anda pada {$date}");
-        }
+                "{$employee->user->name} mengajukan izin untuk {$date}, menunggu {$action}"));
     }
 
     private function notice(Employee $to, ShiftRequest $request, string $message): void
