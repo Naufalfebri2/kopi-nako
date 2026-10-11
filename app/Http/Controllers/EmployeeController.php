@@ -1,0 +1,176 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Controllers\Controller;
+use App\Models\Employee;
+use App\Models\Role;
+use App\Services\EmployeeManagement;
+use App\Services\EmployeeRegistration;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Throwable;
+
+class EmployeeController extends Controller
+{
+    public function store(Request $request, EmployeeRegistration $registration): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->hasRole(Role::SUPERVISOR), 403);
+
+        $request->merge([
+            'name'     => trim((string) $request->input('name')),
+            'email'    => Str::lower(trim((string) $request->input('email'))),
+            'no_phone' => preg_replace('/[\s\-()]+/', '', (string) $request->input('no_phone')),
+            'nik'      => trim((string) $request->input('nik')),
+        ]);
+
+        $validator = Validator::make($request->all(), [
+            'name'     => ['required', 'string', 'max:255'],
+            'email'    => ['required', 'email', 'max:255', 'unique:users,email'],
+            'no_phone' => ['required', 'regex:/^(\+62|62|0)8\d{8,12}$/'],
+            'nik'      => ['required', 'string', 'max:20', 'unique:employees,nik'],
+            'job_id'   => ['required', 'exists:job,id'],
+            'id_role'  => ['required', 'exists:roles,id'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ], $this->messages() + [
+            'no_phone.required'  => 'Nomor telepon wajib diisi.',
+            'no_phone.regex'     => 'Nomor telepon tidak valid. Contoh: 081234567890.',
+            'nik.required'       => 'NIK wajib diisi.',
+            'nik.max'            => 'NIK maksimal 20 karakter.',
+            'nik.unique'         => 'NIK sudah terdaftar.',
+            'password.required'  => 'Kata sandi wajib diisi.',
+            'password.min'       => 'Kata sandi minimal 8 karakter.',
+            'password.confirmed' => 'Konfirmasi kata sandi tidak cocok.',
+        ]);
+
+        $oldInput = $request->except(['password', 'password_confirmation']);
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput($oldInput);
+        }
+
+        try {
+            $employee = $registration->register($user, $validator->validated());
+        } catch (Throwable $e) {
+            // Hanya nama kelas: pesan QueryException bisa memuat NIK/kata sandi dari binding SQL.
+            Log::error('Pendaftaran karyawan gagal.', ['exception' => $e::class]);
+
+            return back()
+                ->with('error', 'Karyawan belum dapat ditambahkan. Silakan coba lagi.')
+                ->withInput($oldInput);
+        }
+
+        return redirect()
+            ->route('dashboard')
+            ->with('notice', "Karyawan {$employee->user->name} berhasil ditambahkan.");
+    }
+
+    public function update(Request $request, Employee $employee, EmployeeManagement $management): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->hasRole(Role::SUPERVISOR), 403);
+
+        $request->merge([
+            'name'  => trim((string) $request->input('name')),
+            'email' => Str::lower(trim((string) $request->input('email'))),
+        ]);
+
+        $validator = Validator::make($request->all(), [
+            'name'    => ['required', 'string', 'max:255'],
+            'email'   => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($employee->id_user)],
+            'job_id'  => ['required', 'exists:job,id'],
+            'id_role' => ['required', 'exists:roles,id'],
+        ], $this->messages());
+
+        $validator->after(function ($v) use ($user, $employee, $request) {
+            if ($employee->id_user === $user->id && (int) $request->input('id_role') !== (int) $user->id_role) {
+                $v->errors()->add('id_role', 'Anda tidak dapat mengubah role akun Anda sendiri.');
+            }
+        });
+
+        $oldInput = $request->only(['name', 'email', 'job_id', 'id_role']) + ['edit_employee_id' => $employee->id];
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator, 'editKaryawan')->withInput($oldInput);
+        }
+
+        try {
+            $management->update($employee, $validator->validated());
+        } catch (Throwable $e) {
+            Log::error('Perubahan data karyawan gagal.', ['exception' => $e::class]);
+
+            return back()->with('error', 'Data karyawan belum dapat disimpan. Silakan coba lagi.');
+        }
+
+        return back()->with('notice', "Data karyawan {$validator->validated()['name']} berhasil diperbarui.");
+    }
+
+    // Hapus permanen, hanya untuk karyawan tanpa riwayat (salah masukkan).
+    public function destroy(Request $request, Employee $employee, EmployeeManagement $management): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->hasRole(Role::SUPERVISOR), 403);
+
+        if ($employee->id_user === $user->id) {
+            return back()->with('error', 'Anda tidak dapat menghapus akun Anda sendiri.');
+        }
+
+        if ($blocker = $management->deletionBlocker($employee)) {
+            return back()->with('error', $blocker);
+        }
+
+        $name = $employee->user->name;
+
+        try {
+            $management->delete($employee);
+        } catch (Throwable $e) {
+            Log::error('Penghapusan karyawan gagal.', ['exception' => $e::class]);
+
+            return back()->with('error', 'Karyawan belum dapat dihapus. Silakan coba lagi.');
+        }
+
+        return back()->with('notice', "Karyawan {$name} berhasil dihapus.");
+    }
+
+    // Untuk karyawan yang sudah punya riwayat: tidak tampil lagi di jadwal, data tetap tersimpan.
+    public function deactivate(Request $request, Employee $employee, EmployeeManagement $management): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->hasRole(Role::SUPERVISOR), 403);
+
+        if ($employee->id_user === $user->id) {
+            return back()->with('error', 'Anda tidak dapat menonaktifkan akun Anda sendiri.');
+        }
+
+        try {
+            $management->deactivate($employee);
+        } catch (Throwable $e) {
+            Log::error('Penonaktifan karyawan gagal.', ['exception' => $e::class]);
+
+            return back()->with('error', 'Karyawan belum dapat dinonaktifkan. Silakan coba lagi.');
+        }
+
+        return back()->with('notice', "Karyawan {$employee->user->name} dinonaktifkan dan tidak lagi tampil di jadwal.");
+    }
+
+    private function messages(): array
+    {
+        return [
+            'name.required'    => 'Nama lengkap wajib diisi.',
+            'name.max'         => 'Nama lengkap maksimal 255 karakter.',
+            'email.required'   => 'Email wajib diisi.',
+            'email.email'      => 'Format email tidak valid.',
+            'email.max'        => 'Email maksimal 255 karakter.',
+            'email.unique'     => 'Email sudah digunakan.',
+            'job_id.required'  => 'Jabatan wajib dipilih.',
+            'job_id.exists'    => 'Jabatan tidak ditemukan.',
+            'id_role.required' => 'Role akses wajib dipilih.',
+            'id_role.exists'   => 'Role akses tidak ditemukan.',
+        ];
+    }
+}

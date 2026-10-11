@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ShiftRequestController;
@@ -31,4 +32,11 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/laporan', [ReportController::class, 'index'])->name('laporan.index');
     Route::get('/laporan/pdf', [ReportController::class, 'pdf'])->name('laporan.pdf');
+
+    Route::post('/karyawan', [EmployeeController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('karyawan.store');
+    Route::put('/karyawan/{employee}', [EmployeeController::class, 'update'])->name('karyawan.update');
+    Route::delete('/karyawan/{employee}', [EmployeeController::class, 'destroy'])->name('karyawan.destroy');
+    Route::patch('/karyawan/{employee}/nonaktif', [EmployeeController::class, 'deactivate'])->name('karyawan.deactivate');
 });
