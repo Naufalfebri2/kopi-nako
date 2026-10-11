@@ -18,6 +18,8 @@ class ShiftScheduleDetail extends Model
 {
     protected $table = 'shift_schedule_detail';
     public $timestamps = false;
+    // Tanggal disimpan tanpa jam, supaya perbandingan string (where, whereBetween, whereIn) cocok di semua database.
+    protected $dateFormat = 'Y-m-d';
     protected $fillable = ['id_schedule', 'id_employee', 'hour', 'status_lead', 'date'];
     protected $casts = [
         'status_lead' => 'boolean',
