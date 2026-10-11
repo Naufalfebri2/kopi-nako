@@ -5,15 +5,46 @@
         const assignModal = bootstrap.Modal.getOrCreateInstance(assignEl);
         const assignForm = assignEl.querySelector("form");
 
+        const employeeBoxes = assignEl.querySelectorAll(
+            'input[name="employee_ids[]"]',
+        );
+        const employeeList = document.getElementById("assignEmployee");
+        const employeeSearch = document.getElementById("assignEmployeeSearch");
+        const employeeAll = document.getElementById("assignEmployeeAll");
+        const dateFrom = assignForm.elements.date;
+        const dateTo = assignForm.elements.date_to;
+        const clientError = document.getElementById("assignClientError");
+
+        // Kosongkan isian dan hapus sisa pencarian, lalu isi sesuai sel yang diklik
+        const resetAssignForm = (button) => {
+            const { employee, date, shift } = button.dataset;
+
+            employeeBoxes.forEach((box) => {
+                box.checked = employee ? box.value === employee : false;
+            });
+            employeeAll.checked = false;
+
+            // Hapus filter pencarian supaya semua karyawan tampil lagi
+            employeeSearch.value = "";
+            employeeSearch.dispatchEvent(new Event("input", { bubbles: true }));
+
+            dateFrom.value =
+                date || assignForm.dataset.defaultDate || dateFrom.defaultValue;
+            dateTo.value = "";
+            assignForm.elements.shift_id.value = shift || "";
+            assignForm.elements.status_lead.checked = false;
+
+            clientError.classList.add("d-none");
+            clientError.textContent = "";
+
+            // Minta skrip di modal menghitung ulang penghitung dan ringkasan
+            employeeList.dispatchEvent(new Event("change", { bubbles: true }));
+            dateFrom.dispatchEvent(new Event("change", { bubbles: true }));
+        };
+
         document.querySelectorAll("[data-assign]").forEach((button) => {
             button.addEventListener("click", () => {
-                assignForm.reset();
-
-                const { employee, date, shift } = button.dataset;
-                if (employee) assignForm.elements.employee_id.value = employee;
-                if (date) assignForm.elements.date.value = date;
-                if (shift) assignForm.elements.shift_id.value = shift;
-
+                resetAssignForm(button);
                 assignModal.show();
             });
         });

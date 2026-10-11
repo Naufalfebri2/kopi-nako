@@ -129,6 +129,56 @@ class ScheduleService
         });
     }
 
+    /**
+     * Menambah jadwal untuk banyak karyawan, tanggal, dan shift sekaligus dalam satu transaksi.
+     * Kombinasi yang ditolak assignmentError() dilewati dan dilaporkan, bukan menggagalkan semuanya.
+     * Karena satu karyawan hanya boleh punya satu shift per tanggal, bila beberapa shift dipilih
+     * maka shift pertama pada urutan $shiftIds yang tersimpan dan sisanya dilewati.
+     *
+     * @param  array<int>  $employeeIds
+     * @param  array<string>  $dates  Format Y-m-d
+     * @param  array<int>  $shiftIds
+     * @return array{created: int, skipped: int, reasons: array<int, string>}
+     */
+    public function assignMany(User $by, array $employeeIds, array $dates, array $shiftIds, bool $statusLead): array
+    {
+        sort($dates);
+
+        return DB::transaction(function () use ($by, $employeeIds, $dates, $shiftIds, $statusLead) {
+            $created = 0;
+            $skipped = 0;
+            $reasons = [];
+
+            foreach ($employeeIds as $employeeId) {
+                foreach ($dates as $date) {
+                    foreach ($shiftIds as $shiftId) {
+                        $item = [
+                            'employee_id' => (int) $employeeId,
+                            'shift_id' => (int) $shiftId,
+                            'date' => $date,
+                            'status_lead' => $statusLead,
+                        ];
+
+                        if ($error = $this->assignmentError($item)) {
+                            $skipped++;
+                            $reasons[$error] = $error;
+                            continue;
+                        }
+
+                        $this->assign($by, $item);
+                        $created++;
+                    }
+                }
+            }
+
+            return [
+                'created' => $created,
+                'skipped' => $skipped,
+                'reasons' => array_values($reasons),
+            ];
+        });
+    }
+
     // Pesan kesalahan bila penugasan tidak boleh diubah, atau null bila boleh
     public function updateError(ShiftScheduleDetail $detail, array $data): ?string
     {
