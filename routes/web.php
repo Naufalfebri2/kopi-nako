@@ -5,6 +5,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\ScheduleDeliveryController;
 use App\Http\Controllers\ShiftRequestController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,6 +22,9 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/jadwal', [ScheduleController::class, 'index'])->name('jadwal.index');
     Route::post('/jadwal', [ScheduleController::class, 'store'])->name('jadwal.store');
+    Route::post('/jadwal/kirim', [ScheduleDeliveryController::class, 'store'])
+        ->middleware('throttle:5,1')
+        ->name('jadwal.kirim');
     Route::put('/jadwal/{detail}', [ScheduleController::class, 'update'])->name('jadwal.update');
     Route::delete('/jadwal/{detail}', [ScheduleController::class, 'destroy'])->name('jadwal.destroy');
 
