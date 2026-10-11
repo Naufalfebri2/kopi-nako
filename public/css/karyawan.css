@@ -1,0 +1,119 @@
+.kn-wizard .modal-content {
+    border: 0;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #f7f5f2;
+}
+.kn-wiz-layout {
+    display: flex;
+    min-height: 440px;
+}
+.kn-wiz-side {
+    width: 240px;
+    flex-direction: column;
+    gap: 28px;
+    padding: 28px 22px;
+    background: #1a1714;
+    color: #f7f5f2;
+}
+.kn-wiz-brand {
+    font-family: "Montserrat", sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0;
+}
+.kn-wiz-steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    font-size: 0.9rem;
+}
+.kn-wiz-steps li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0.55;
+}
+.kn-wiz-steps li.is-active,
+.kn-wiz-steps li.is-done {
+    opacity: 1;
+}
+.kn-wiz-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1.5px solid #b4763a;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+}
+.kn-wiz-steps li.is-active .kn-wiz-num,
+.kn-wiz-steps li.is-done .kn-wiz-num {
+    background: #b4763a;
+    color: #fff;
+}
+.kn-wiz-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.kn-wiz-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 22px 24px 8px;
+}
+.kn-wiz-stepname {
+    font-family: "Montserrat", sans-serif;
+    font-size: 1.15rem;
+    margin: 0;
+    color: #1a1714;
+}
+.kn-wiz-stepname:focus {
+    outline: none;
+}
+.kn-wiz-bar {
+    height: 4px;
+    margin: 0 24px 8px;
+}
+.kn-wiz-bar .progress-bar {
+    background: #b4763a;
+}
+.kn-wizard .modal-body {
+    padding: 12px 24px;
+    font-family: "Poppins", sans-serif;
+}
+.kn-wizard .modal-footer {
+    border-top: 0;
+    padding: 12px 24px 22px;
+}
+.kn-summary {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    row-gap: 8px;
+    margin: 0;
+}
+.kn-summary dt {
+    color: #6b635b;
+    font-weight: 500;
+}
+.kn-summary dd {
+    margin: 0;
+    word-break: break-word;
+}
+@media (max-width: 767.98px) {
+    .kn-wiz-layout {
+        min-height: 0;
+    }
+    .kn-summary {
+        grid-template-columns: 1fr;
+    }
+    .kn-summary dd {
+        margin-bottom: 6px;
+    }
+}

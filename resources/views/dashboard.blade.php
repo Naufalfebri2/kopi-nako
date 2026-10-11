@@ -2,13 +2,49 @@
 
 @section('title', 'Dashboard')
 
+@php
+    $isSupervisor = auth()->user()->hasRole(\App\Models\Role::SUPERVISOR);
+@endphp
+
 @push('styles')
     <link href="{{ asset('css/dashboard.css') }}" rel="stylesheet">
+    @if ($isSupervisor)
+        <link href="{{ asset('css/karyawan.css') }}" rel="stylesheet">
+    @endif
 @endpush
 
+@if ($isSupervisor)
+    @push('scripts')
+        <script src="{{ asset('js/karyawan.js') }}"></script>
+    @endpush
+@endif
+
 @section('content')
-    <h1 class="kn-page-title">Ringkasan Shift Minggu Ini</h1>
-    <div class="kn-page-sub mb-4">{{ now()->locale('id')->translatedFormat('l, j F Y') }}</div>
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
+        <div>
+            <h1 class="kn-page-title">Ringkasan Shift Minggu Ini</h1>
+            <div class="kn-page-sub">{{ now()->locale('id')->translatedFormat('l, j F Y') }}</div>
+        </div>
+
+        @if ($isSupervisor)
+            <button type="button" class="btn btn-kn" data-bs-toggle="modal" data-bs-target="#knTambahKaryawan">
+                <i class="fa-solid fa-user-plus me-1" aria-hidden="true"></i> Tambah Karyawan
+            </button>
+        @endif
+    </div>
+
+    @if (session('notice'))
+        <div class="alert alert-success alert-dismissible fade show" role="status">
+            {{ session('notice') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Tutup"></button>
+        </div>
+    @endif
+    @if (session('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Tutup"></button>
+        </div>
+    @endif
 
     <div class="row g-3 mb-4">
         <div class="col-6 col-lg-3">
@@ -59,7 +95,8 @@
                                 <tr>
                                     <td>
                                         <div class="d-flex align-items-center gap-2">
-                                            <span class="kn-avatar kn-avatar-sm">{{ $req->employee->user->initials }}</span>
+                                            <span
+                                                class="kn-avatar kn-avatar-sm">{{ $req->employee->user->initials }}</span>
                                             <span class="fw-semibold">{{ $req->employee->user->name }}</span>
                                         </div>
                                     </td>
@@ -134,4 +171,8 @@
             </div>
         </div>
     </div>
+
+    @if ($isSupervisor)
+        @include('karyawan._tambah-modal')
+    @endif
 @endsection

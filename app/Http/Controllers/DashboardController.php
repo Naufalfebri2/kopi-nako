@@ -6,6 +6,7 @@ use App\Enums\EmployeeStatus;
 use App\Enums\RequestStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Models\Job;
 use App\Models\LogRequest;
 use App\Models\Role;
 use App\Models\ShiftRequest;
@@ -25,6 +26,7 @@ class DashboardController extends Controller
     public function index(Request $request): View
     {
         $user = $request->user();
+        $isSupervisor = $user->hasRole(Role::SUPERVISOR);
 
         return view('dashboard', [
             'stats' => $this->stats($user),
@@ -33,6 +35,9 @@ class DashboardController extends Controller
             'notifications' => $this->notifications($user),
             'running' => $this->schedules->running(now()),
             'upcoming' => $this->schedules->upcomingToday(now()),
+            // Data untuk wizard "Tambah Karyawan", hanya dimuat untuk Supervisor
+            'jobs' => $isSupervisor ? Job::orderBy('name')->get(['id', 'name']) : collect(),
+            'roles' => $isSupervisor ? Role::orderBy('name')->get(['id', 'name']) : collect(),
         ]);
     }
 
