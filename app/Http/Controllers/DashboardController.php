@@ -10,6 +10,7 @@ use App\Models\Job;
 use App\Models\LogRequest;
 use App\Models\Role;
 use App\Models\ShiftRequest;
+use App\Models\ShiftScheduleDetail;
 use App\Models\User;
 use App\Services\ScheduleService;
 use Illuminate\Database\Eloquent\Builder;
@@ -52,20 +53,23 @@ class DashboardController extends Controller
 
     private function stats(User $user): array
     {
-        $monthStart = now()->startOfMonth();
-        $monthEnd = now()->endOfMonth();
+        $weekStart = now()->startOfWeek()->toDateString();
+        $weekEnd = now()->endOfWeek()->toDateString();
 
         return [
+            // Jumlah Shift Post: penugasan yang terbit pada minggu berjalan
+            'shift_post' => ShiftScheduleDetail::whereBetween('date', [$weekStart, $weekEnd])->count(),
+            // Jumlah Request
+            'request' => $this->requestQuery($user)->count(),
+            // Pengganti "Jumlah Views": karyawan aktif yang bertugas hari ini
+            'bertugas' => ShiftScheduleDetail::where('date', today()->toDateString())
+                ->whereHas('employee', fn ($q) => $q->where('status', EmployeeStatus::Aktif))
+                ->distinct()
+                ->count('id_employee'),
             'aktif' => Employee::where('status', EmployeeStatus::Aktif)->count(),
-            'nonaktif' => Employee::where('status', EmployeeStatus::Nonaktif)->count(),
-            'menunggu' => $this->requestQuery($user)
-                ->where('status', RequestStatus::Menunggu)
-                ->count(),
-            'disetujui_bulan_ini' => $this->requestQuery($user)
+            // Jumlah Completed
+            'completed' => $this->requestQuery($user)
                 ->where('status', RequestStatus::Disetujui)
-                ->whereHas('logs', fn ($q) => $q
-                    ->where('status', RequestStatus::Disetujui)
-                    ->whereBetween('created_at', [$monthStart, $monthEnd]))
                 ->count(),
         ];
     }

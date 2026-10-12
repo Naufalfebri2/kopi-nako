@@ -48,16 +48,17 @@
 
     <div class="row g-3 mb-4">
         <div class="col-6 col-lg-3">
-            <x-stat-card icon="fa-solid fa-users" :value="$stats['aktif']" label="Karyawan Aktif" />
+            <x-stat-card icon="fa-regular fa-calendar-check" :value="$stats['shift_post']" label="Shift Terbit Minggu Ini" />
         </div>
         <div class="col-6 col-lg-3">
-            <x-stat-card icon="fa-solid fa-hourglass-half" :value="$stats['menunggu']" label="Pengajuan Menunggu" tone="warn" />
+            <x-stat-card icon="fa-solid fa-right-left" :value="$stats['request']" label="Total Pengajuan" />
         </div>
         <div class="col-6 col-lg-3">
-            <x-stat-card icon="fa-solid fa-check" :value="$stats['disetujui_bulan_ini']" label="Disetujui Bulan Ini" />
+            <x-stat-card icon="fa-solid fa-user-clock" :value="$stats['bertugas']"
+                :label="'Bertugas Hari Ini, dari '.$stats['aktif'].' karyawan aktif'" />
         </div>
         <div class="col-6 col-lg-3">
-            <x-stat-card icon="fa-regular fa-circle" :value="$stats['nonaktif']" label="Karyawan Tidak Aktif" tone="muted" />
+            <x-stat-card icon="fa-solid fa-check" :value="$stats['completed']" label="Pengajuan Disetujui" />
         </div>
     </div>
 
