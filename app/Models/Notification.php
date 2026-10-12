@@ -6,6 +6,7 @@ use App\Mail\NotificationMail;
 use App\Models\Employee;
 use App\Models\ShiftRequest;
 use App\Models\ShiftSchedule;
+use App\Services\WhatsAppGateway;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -18,11 +19,14 @@ class Notification extends Model
     public $timestamps = false;
     protected $fillable = ['id_employee', 'schedule_id', 'request_id', 'status', 'message'];
 
-    // Setiap notifikasi di aplikasi juga dikirim sebagai email ke karyawan penerima.
+    // Setiap notifikasi di aplikasi juga dikirim lewat email dan WhatsApp ke karyawan penerima.
     protected static function booted(): void
     {
         static::created(function (self $notification) {
-            DB::afterCommit(fn () => $notification->sendEmail());
+            DB::afterCommit(function () use ($notification) {
+                $notification->sendEmail();
+                $notification->sendWhatsApp();
+            });
         });
     }
 
@@ -40,6 +44,11 @@ class Notification extends Model
             // Email gagal tidak boleh menggagalkan proses utama. Hanya nama kelas yang dicatat.
             Log::warning('Email notifikasi gagal dikirim.', ['exception' => $e::class]);
         }
+    }
+
+    public function sendWhatsApp(): void
+    {
+        app(WhatsAppGateway::class)->send($this->employee?->no_phone, $this->message);
     }
 
     public function employee()

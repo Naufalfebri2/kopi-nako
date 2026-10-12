@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\WhatsAppGateway;
 use App\Enums\EmployeeStatus;
 use App\Mail\ScheduleMail;
 use App\Models\Employee;
@@ -15,6 +16,10 @@ use Throwable;
 
 class ScheduleDelivery
 {
+    public function __construct(private WhatsAppGateway $whatsapp)
+    {
+    }
+
     // Mingguan: Senin sampai Minggu pada minggu yang memuat $date. Bulanan: seluruh bulan $date.
     public function range(string $periode, Carbon $date): array
     {
@@ -31,7 +36,8 @@ class ScheduleDelivery
 
     /**
      * Mengirim jadwal pribadi (PDF) ke setiap karyawan aktif yang punya jadwal pada periode itu,
-     * lewat notifikasi di aplikasi dan email.
+     * lewat email, notifikasi di aplikasi, dan WhatsApp. Notifikasi dan WhatsApp hanya dikirim
+     * bila email berhasil.
      *
      * @return array{sent: int, failed: int}
      */
@@ -57,32 +63,44 @@ class ScheduleDelivery
         foreach ($employees as $employee) {
             $email = $employee->user?->email;
 
-            // Notifikasi di aplikasi. Tanpa event, supaya email teks biasa tidak ikut terkirim.
-            Notification::withoutEvents(fn () => Notification::create([
-                'id_employee' => $employee->id,
-                'schedule_id' => null,
-                'request_id' => null,
-                'status' => 'belum_dibaca',
-                'message' => "Jadwal shift Anda untuk {$label} sudah terbit. PDF dikirim ke email Anda.",
-            ]));
-
             if (! $email) {
                 $failed++;
                 continue;
             }
 
             try {
+                $rows = $details->get($employee->id);
+
                 $pdf = Pdf::loadView('jadwal.pdf', [
                     'name' => $employee->user->name,
                     'periodLabel' => $label,
-                    'rows' => $details->get($employee->id),
+                    'rows' => $rows,
                 ])->setPaper('a4', 'portrait')->output();
 
                 Mail::to($email)->send(new ScheduleMail($employee->user->name, $label, $pdf));
+
+                // Tanpa event, supaya email teks biasa tidak ikut terkirim.
+                Notification::withoutEvents(fn () => Notification::create([
+                    'id_employee' => $employee->id,
+                    'schedule_id' => null,
+                    'request_id' => null,
+                    'status' => 'belum_dibaca',
+                    'message' => "Jadwal shift Anda untuk {$label} sudah terbit. PDF dikirim ke email Anda.",
+                ]));
+
+                $this->whatsapp->send(
+                    $employee->no_phone,
+                    "Halo {$employee->user->name}, jadwal shift Anda untuk {$label} sudah terbit ({$rows->count()} shift). "
+                    .'Jadwal lengkap (PDF) sudah dikirim ke email Anda.'
+                );
+
                 $sent++;
             } catch (Throwable $e) {
-                // Hanya nama kelas yang dicatat.
-                Log::warning('Pengiriman PDF jadwal gagal.', ['exception' => $e::class]);
+                Log::warning('Pengiriman PDF jadwal gagal.', [
+                    'exception' => $e::class,
+                    'message' => $e->getMessage(),
+                    'at' => basename($e->getFile()).':'.$e->getLine(),
+                ]);
                 $failed++;
             }
         }
