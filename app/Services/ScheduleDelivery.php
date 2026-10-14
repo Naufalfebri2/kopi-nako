@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Services\WhatsAppGateway;
 use App\Enums\EmployeeStatus;
 use App\Mail\ScheduleMail;
 use App\Models\Employee;
@@ -16,10 +15,6 @@ use Throwable;
 
 class ScheduleDelivery
 {
-    public function __construct(private WhatsAppGateway $whatsapp)
-    {
-    }
-
     // Mingguan: Senin sampai Minggu pada minggu yang memuat $date. Bulanan: seluruh bulan $date.
     public function range(string $periode, Carbon $date): array
     {
@@ -36,8 +31,7 @@ class ScheduleDelivery
 
     /**
      * Mengirim jadwal pribadi (PDF) ke setiap karyawan aktif yang punya jadwal pada periode itu,
-     * lewat email, notifikasi di aplikasi, dan WhatsApp. Notifikasi dan WhatsApp hanya dikirim
-     * bila email berhasil.
+     * lewat email dan notifikasi di aplikasi. Notifikasi hanya dibuat bila email berhasil dikirim.
      *
      * @return array{sent: int, failed: int}
      */
@@ -69,12 +63,10 @@ class ScheduleDelivery
             }
 
             try {
-                $rows = $details->get($employee->id);
-
                 $pdf = Pdf::loadView('jadwal.pdf', [
                     'name' => $employee->user->name,
                     'periodLabel' => $label,
-                    'rows' => $rows,
+                    'rows' => $details->get($employee->id),
                 ])->setPaper('a4', 'portrait')->output();
 
                 Mail::to($email)->send(new ScheduleMail($employee->user->name, $label, $pdf));
@@ -87,12 +79,6 @@ class ScheduleDelivery
                     'status' => 'belum_dibaca',
                     'message' => "Jadwal shift Anda untuk {$label} sudah terbit. PDF dikirim ke email Anda.",
                 ]));
-
-                $this->whatsapp->send(
-                    $employee->no_phone,
-                    "Halo {$employee->user->name}, jadwal shift Anda untuk {$label} sudah terbit ({$rows->count()} shift). "
-                    .'Jadwal lengkap (PDF) sudah dikirim ke email Anda.'
-                );
 
                 $sent++;
             } catch (Throwable $e) {
