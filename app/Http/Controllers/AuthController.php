@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\EmployeeStatus;
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -25,6 +27,12 @@ class AuthController extends Controller
             'email.email' => 'Format alamat email tidak valid.',
             'password.required' => 'Kata sandi tidak boleh kosong.',
         ]);
+
+        // Karyawan nonaktif tidak boleh login. Pesan sengaja sama dengan salah kata sandi.
+        $credentials['id'] = fn ($query) => $query->whereDoesntHave(
+            'employee',
+            fn ($employee) => $employee->where('status', EmployeeStatus::Nonaktif)
+        );
 
         if (! Auth::attempt($credentials)) {
             return back()
