@@ -16,6 +16,8 @@ class EmployeeManagementTest extends TestCase
     use RefreshDatabase;
 
     private Job $job;
+    private Job $leadJob;
+    private Job $spvJob;
     private Role $supervisorRole;
     private Role $leaderRole;
     private Role $karyawanRole;
@@ -27,7 +29,10 @@ class EmployeeManagementTest extends TestCase
         $this->supervisorRole = Role::create(['name' => Role::SUPERVISOR]);
         $this->leaderRole     = Role::create(['name' => Role::LEADER]);
         $this->karyawanRole   = Role::create(['name' => Role::KARYAWAN]);
-        $this->job            = Job::create(['name' => 'Barista']);
+        // Jabatan harus cocok dengan role (aturan pasangan role dan jabatan).
+        $this->job     = Job::create(['name' => 'Service']);
+        $this->leadJob = Job::create(['name' => 'Lead Cook']);
+        $this->spvJob  = Job::create(['name' => 'Supervisor']);
     }
 
     private function makeEmployee(Role $role, string $email, string $nik): Employee
@@ -37,8 +42,14 @@ class EmployeeManagementTest extends TestCase
             'password' => 'password123', 'id_role' => $role->id,
         ]);
 
+        $job = match ($role->id) {
+            $this->supervisorRole->id => $this->spvJob,
+            $this->leaderRole->id     => $this->leadJob,
+            default                   => $this->job,
+        };
+
         return Employee::create([
-            'nik' => $nik, 'id_user' => $user->id, 'job_id' => $this->job->id,
+            'nik' => $nik, 'id_user' => $user->id, 'job_id' => $job->id,
             'no_phone' => '081200000000', 'status' => EmployeeStatus::Aktif,
         ]);
     }
@@ -47,7 +58,7 @@ class EmployeeManagementTest extends TestCase
     {
         return array_merge([
             'name' => 'Nama Baru', 'email' => $e->user->email,
-            'job_id' => $this->job->id, 'id_role' => $e->user->id_role,
+            'job_id' => $e->job_id, 'id_role' => $e->user->id_role,
         ], $override);
     }
 
@@ -59,6 +70,7 @@ class EmployeeManagementTest extends TestCase
         $this->actingAs($spv->user)
             ->put(route('karyawan.update', $emp), $this->payload($emp, [
                 'name' => 'Budi Baru', 'id_role' => $this->leaderRole->id,
+                'job_id' => $this->leadJob->id,
                 'nik' => '999', 'no_phone' => '081299999999',
             ]))
             ->assertSessionHasNoErrors()

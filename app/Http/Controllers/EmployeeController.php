@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Models\Job;
 use App\Models\Role;
 use App\Services\EmployeeManagement;
 use App\Services\EmployeeRegistration;
+use App\Services\RolePairing;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -17,6 +19,10 @@ use Throwable;
 
 class EmployeeController extends Controller
 {
+    public function __construct(private RolePairing $pairing)
+    {
+    }
+
     public function store(Request $request, EmployeeRegistration $registration): RedirectResponse
     {
         $user = $request->user();
@@ -47,6 +53,8 @@ class EmployeeController extends Controller
             'password.min'       => 'Kata sandi minimal 8 karakter.',
             'password.confirmed' => 'Konfirmasi kata sandi tidak cocok.',
         ]);
+
+        $validator->after(fn ($v) => $this->checkPairing($v, $request));
 
         $oldInput = $request->except(['password', 'password_confirmation']);
 
@@ -91,6 +99,8 @@ class EmployeeController extends Controller
             if ($employee->id_user === $user->id && (int) $request->input('id_role') !== (int) $user->id_role) {
                 $v->errors()->add('id_role', 'Anda tidak dapat mengubah role akun Anda sendiri.');
             }
+
+            $this->checkPairing($v, $request);
         });
 
         $oldInput = $request->only(['name', 'email', 'job_id', 'id_role']) + ['edit_employee_id' => $employee->id];
@@ -156,6 +166,27 @@ class EmployeeController extends Controller
         }
 
         return back()->with('notice', "Karyawan {$employee->user->name} dinonaktifkan dan tidak lagi tampil di jadwal.");
+    }
+
+    // Jabatan harus sesuai dengan role akses (aturan dari klien).
+    private function checkPairing($validator, Request $request): void
+    {
+        if ($validator->errors()->has('job_id') || $validator->errors()->has('id_role')) {
+            return;
+        }
+
+        $role = Role::find($request->input('id_role'));
+        $job = Job::find($request->input('job_id'));
+
+        if (! $role || ! $job || $this->pairing->allows($role->name, $job->name)) {
+            return;
+        }
+
+        $validator->errors()->add(
+            'job_id',
+            "Jabatan {$job->name} tidak sesuai dengan role {$role->name}. Jabatan yang diizinkan: "
+            .implode(', ', $this->pairing->allowedJobs($role->name)).'.'
+        );
     }
 
     private function messages(): array

@@ -30,7 +30,8 @@ class EmployeeRegistrationTest extends TestCase
         $this->supervisorRole = Role::create(['name' => Role::SUPERVISOR]);
         $this->leaderRole     = Role::create(['name' => Role::LEADER]);
         $this->karyawanRole   = Role::create(['name' => Role::KARYAWAN]);
-        $this->job            = Job::create(['name' => 'Barista']);
+        // Jabatan harus cocok dengan role Karyawan (aturan pasangan role dan jabatan).
+        $this->job            = Job::create(['name' => 'Service']);
     }
 
     private function makeUser(Role $role, string $email): User
