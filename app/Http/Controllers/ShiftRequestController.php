@@ -10,6 +10,7 @@ use App\Models\ShiftRequest;
 use App\Models\User;
 use App\Services\RequestApproval;
 use App\Services\RequestSubmission;
+use App\Services\ScheduleService;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -22,6 +23,7 @@ class ShiftRequestController extends Controller
     public function __construct(
         private RequestApproval $approval,
         private RequestSubmission $submission,
+        private ScheduleService $schedule,
     ) {
     }
 
@@ -70,7 +72,7 @@ class ShiftRequestController extends Controller
         return redirect()->route('pengajuan.index')->with('notice', 'Pengajuan berhasil dikirim.');
     }
 
-    // Isi panel detail (dimuat lewat fetch)
+    // Isi panel detail (dimuat lewat fetch). Stepper hanya ditampilkan untuk pengaju.
     public function show(Request $request, ShiftRequest $shiftRequest): View
     {
         $user = $request->user();
@@ -83,6 +85,7 @@ class ShiftRequestController extends Controller
 
         return view('pengajuan._detail', [
             'req' => $shiftRequest,
+            'showStepper' => $user->employee?->id === $shiftRequest->employee_id,
             'steps' => $this->approval->timeline($shiftRequest),
             'canDecide' => $this->approval->canDecide($user, $shiftRequest),
             'awaiting' => $this->approval->awaitingStep($shiftRequest),
@@ -205,16 +208,20 @@ class ShiftRequestController extends Controller
         ];
     }
 
-    // Karyawan melihat pengajuannya sendiri dan pengajuan yang menunjuknya sebagai rekan tukar
+    // Supervisor: semua. Leader: dirinya dan sedivisi. Karyawan: dirinya.
+    // Ketiganya ditambah pengajuan yang menunjuk dirinya sebagai rekan tukar.
     private function scopedQuery(User $user): Builder
     {
+        $visible = $this->schedule->visibleEmployeeIds($user);
+
+        if ($visible === null) {
+            return ShiftRequest::query();
+        }
+
         $employeeId = $user->employee?->id ?? 0;
 
-        return ShiftRequest::query()->when(
-            $user->hasRole(Role::KARYAWAN),
-            fn ($query) => $query->where(fn ($q) => $q
-                ->where('employee_id', $employeeId)
-                ->orWhere('partner_id', $employeeId))
-        );
+        return ShiftRequest::query()->where(fn ($q) => $q
+            ->whereIn('employee_id', $visible)
+            ->orWhere('partner_id', $employeeId));
     }
 }

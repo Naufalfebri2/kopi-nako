@@ -2,14 +2,15 @@
 
 namespace App\Services;
 
+use App\Services\Division;
 use App\Services\ScheduleService;
+use App\Enums\EmployeeStatus;
 use App\Enums\RequestStatus;
 use App\Models\Employee;
 use App\Models\LogRequest;
 use App\Models\Notification;
 use App\Models\Role;
 use App\Models\ShiftRequest;
-use App\Models\ShiftScheduleDetail;
 use App\Models\User;
 use Carbon\Carbon;
 use DomainException;
@@ -22,21 +23,33 @@ class RequestApproval
     public const STEP_LEADER = 'leader';
     public const STEP_SUPERVISOR = 'supervisor';
 
-    private const RELATIONS = ['employee.user.role', 'partner.user', 'logs.approver.role'];
+    private const RELATIONS = ['employee.user.role', 'employee.job', 'partner.user', 'logs.approver.role'];
 
-    public function __construct(private ScheduleService $schedules)
+    public function __construct(private ScheduleService $schedules, private Division $divisions)
     {
     }
 
-    // Karyawan yang menjadi Leader pada jadwal (shift dan tanggal) milik pengaju
+    // Leader/Head aktif yang sedivisi dengan pengaju. Shift dan jadwal mereka tidak dipertimbangkan.
     public function leaderEmployeeIds(ShiftRequest $request): Collection
     {
-        return ShiftScheduleDetail::where('id_schedule', $request->schedule_id)
-            ->where('status_lead', true)
-            ->pluck('id_employee');
+        $request->loadMissing(self::RELATIONS);
+
+        $division = $this->divisions->of($request->employee->job?->name);
+
+        if ($division === null) {
+            return collect();
+        }
+
+        return Employee::with('job')
+            ->where('status', EmployeeStatus::Aktif)
+            ->whereHas('user.role', fn ($query) => $query->where('name', Role::LEADER))
+            ->get()
+            ->filter(fn (Employee $leader) => $this->divisions->of($leader->job?->name) === $division)
+            ->pluck('id')
+            ->values();
     }
 
-    // Pengajuan Karyawan diverifikasi Leader dulu, selama jadwalnya punya Leader
+    // Pengajuan Karyawan diverifikasi Leader dulu, selama ada Leader aktif di divisinya
     public function needsLeader(ShiftRequest $request): bool
     {
         $request->loadMissing(self::RELATIONS);
@@ -63,12 +76,22 @@ class RequestApproval
             : self::STEP_SUPERVISOR;
     }
 
-    // Karyawan boleh melihat pengajuan miliknya, atau yang menunjuk dirinya sebagai rekan tukar
+    // Aturan lihat selaras dengan daftar: Supervisor semua, Leader dirinya dan sedivisi,
+    // Karyawan dirinya. Ketiganya juga boleh melihat pengajuan yang menunjuknya sebagai rekan tukar.
     public function canView(User $user, ShiftRequest $request): bool
     {
-        return ! $user->hasRole(Role::KARYAWAN)
-            || $request->employee_id === $user->employee?->id
-            || ($request->partner_id !== null && $request->partner_id === $user->employee?->id);
+        $visible = $this->schedules->visibleEmployeeIds($user);
+
+        if ($visible === null) {
+            return true;
+        }
+
+        $ownId = $user->employee?->id;
+
+        return collect($visible)->contains($request->employee_id)
+            || ($ownId !== null
+                && $request->partner_id !== null
+                && (int) $request->partner_id === (int) $ownId);
     }
 
     public function canDecide(User $user, ShiftRequest $request): bool
@@ -174,10 +197,10 @@ class RequestApproval
 
         [$state, $meta] = match (true) {
             ! $this->needsLeader($request) => ['skipped', $request->employee->user->hasRole(Role::KARYAWAN)
-                ? 'Tidak ada Leader pada jadwal ini'
+                ? 'Tidak ada Leader/Head sedivisi'
                 : 'Tidak diperlukan'],
             $leaderLog !== null => [$this->logState($leaderLog), $this->logMeta($leaderLog)],
-            $awaiting === self::STEP_LEADER => ['active', 'Menunggu verifikasi'],
+            $awaiting === self::STEP_LEADER => ['active', 'Menunggu verifikasi Leader/Head sedivisi'],
             $rejected => ['waiting', 'Tidak dilanjutkan'],
             default => ['waiting', 'Belum dimulai'],
         };

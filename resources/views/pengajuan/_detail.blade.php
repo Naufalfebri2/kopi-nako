@@ -51,37 +51,39 @@
         <div class="kn-info-row"><span>Status</span><span><x-status-dot :status="$req->status" /></span></div>
     </div>
 
-    <div class="kn-section-label small fw-semibold mb-2">Proses Persetujuan</div>
-    <div class="kn-stepper mb-4">
-        @foreach ($steps as $step)
-            <div class="kn-step">
-                <span class="kn-step-dot kn-step-{{ $step['state'] }}">
-                    @switch($step['state'])
-                        @case('done')
-                            <i class="fa-solid fa-check"></i>
-                        @break
+    @if ($showStepper)
+        <div class="kn-section-label small fw-semibold mb-2">Proses Persetujuan</div>
+        <div class="kn-stepper mb-4">
+            @foreach ($steps as $step)
+                <div class="kn-step">
+                    <span class="kn-step-dot kn-step-{{ $step['state'] }}">
+                        @switch($step['state'])
+                            @case('done')
+                                <i class="fa-solid fa-check"></i>
+                            @break
 
-                        @case('rejected')
-                            <i class="fa-solid fa-xmark"></i>
-                        @break
+                            @case('rejected')
+                                <i class="fa-solid fa-xmark"></i>
+                            @break
 
-                        @case('skipped')
-                            <i class="fa-solid fa-minus"></i>
-                        @break
-                    @endswitch
-                </span>
-                <div>
-                    <div class="kn-step-title">
-                        {{ $step['title'] }}
-                        @if ($step['state'] === 'active')
-                            <span class="kn-step-badge">Berjalan</span>
-                        @endif
+                            @case('skipped')
+                                <i class="fa-solid fa-minus"></i>
+                            @break
+                        @endswitch
+                    </span>
+                    <div>
+                        <div class="kn-step-title">
+                            {{ $step['title'] }}
+                            @if ($step['state'] === 'active')
+                                <span class="kn-step-badge">Berjalan</span>
+                            @endif
+                        </div>
+                        <div class="kn-step-meta">{{ $step['meta'] }}</div>
                     </div>
-                    <div class="kn-step-meta">{{ $step['meta'] }}</div>
                 </div>
-            </div>
-        @endforeach
-    </div>
+            @endforeach
+        </div>
+    @endif
 
     <div class="kn-note">
         <div class="kn-note-label">Alasan Pengajuan</div>
