@@ -29,8 +29,11 @@
                             </div>
                         </td>
                         @foreach ($row['cells'] as $i => $detail)
+                            @php $mark = $row['marks'][$i] ?? null; @endphp
                             <td>
-                                @if ($detail)
+                                @if ($detail && ($mark['kind'] ?? null) === 'izin')
+                                    <span class="kn-shift kn-shift-libur" title="Izin disetujui">Izin</span>
+                                @elseif ($detail)
                                     @php $shift = $detail->schedule->masterShift; @endphp
 
                                     @if ($canEdit)
@@ -58,6 +61,15 @@
                                             @endif
                                             <span class="kn-shift-hrs">{{ $shift->time_range }}</span>
                                         </span>
+                                    @endif
+
+                                    @if ($mark)
+                                        <div class="mt-1">
+                                            <span
+                                                class="badge {{ $mark['kind'] === 'ditolak' ? 'text-bg-danger' : 'text-bg-warning' }}">
+                                                {{ $mark['label'] }}
+                                            </span>
+                                        </div>
                                     @endif
                                 @elseif ($canEdit)
                                     <button type="button" class="kn-shift kn-shift-libur kn-shift-add" data-assign

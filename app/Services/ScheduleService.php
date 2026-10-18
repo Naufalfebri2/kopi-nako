@@ -5,19 +5,19 @@ namespace App\Services;
 use App\Enums\EmployeeStatus;
 use App\Models\Employee;
 use App\Models\MasterShift;
-use App\Models\Notification;
 use App\Models\Role;
-use App\Models\ShiftRequest;
-use App\Models\ShiftSchedule;
 use App\Models\ShiftScheduleDetail;
 use App\Models\User;
+use App\Services\Concerns\ManagesAssignments;
+use App\Services\Division;
+use App\Services\ScheduleRequestMarks;
 use Carbon\Carbon;
-use DomainException;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 class ScheduleService
 {
+    use ManagesAssignments;
+
     private const DETAIL_RELATIONS = ['schedule.masterShift', 'employee.user', 'employee.job'];
 
     // Tujuh hari (Senin sampai Minggu) pada minggu yang memuat $date
@@ -28,36 +28,82 @@ class ScheduleService
         return collect(range(0, 6))->map(fn (int $i) => $start->copy()->addDays($i));
     }
 
-    // Satu baris per karyawan aktif, berisi penugasan untuk tiap hari (null = libur)
-    public function weeklyRows(Collection $days, ?int $jobId): Collection
+    // Id karyawan yang boleh dilihat $viewer, atau null bila boleh melihat semuanya (Supervisor).
+    // Leader/Head: dirinya dan karyawan sedivisi. Karyawan: hanya dirinya.
+    public function visibleEmployeeIds(User $viewer): ?Collection
     {
-        $details = ShiftScheduleDetail::with('schedule.masterShift')
-            ->whereBetween('date', [$days->first()->toDateString(), $days->last()->toDateString()])
+        if ($viewer->hasRole(Role::SUPERVISOR)) {
+            return null;
+        }
+
+        $own = $viewer->employee;
+
+        if (! $own) {
+            return collect();
+        }
+
+        if (! $viewer->hasRole(Role::LEADER)) {
+            return collect([$own->id]);
+        }
+
+        $own->loadMissing('job');
+        $division = app(Division::class)->of($own->job?->name);
+
+        if ($division === null) {
+            return collect([$own->id]);
+        }
+
+        return Employee::with('job')
             ->get()
-            ->groupBy('id_employee');
+            ->filter(fn (Employee $employee) => $employee->id === $own->id
+                || app(Division::class)->of($employee->job?->name) === $division)
+            ->pluck('id')
+            ->values();
+    }
+
+    // Satu baris per karyawan aktif, berisi penugasan untuk tiap hari (null = libur).
+    // Untuk Supervisor, tiap baris juga membawa 'marks': penanda status pengajuan per hari.
+    public function weeklyRows(Collection $days, ?int $jobId, ?User $viewer = null): Collection
+    {
+        $visible = $viewer ? $this->visibleEmployeeIds($viewer) : null;
+
+        $all = ShiftScheduleDetail::with('schedule.masterShift')
+            ->whereBetween('date', [$days->first()->toDateString(), $days->last()->toDateString()])
+            ->when($visible, fn ($query) => $query->whereIn('id_employee', $visible->all()))
+            ->get();
+
+        $details = $all->groupBy('id_employee');
+        $marks = $viewer?->hasRole(Role::SUPERVISOR)
+            ? app(ScheduleRequestMarks::class)->forDetails($all)
+            : [];
 
         return Employee::with(['user.role', 'job'])
             ->where('status', EmployeeStatus::Aktif)
+            ->when($visible !== null, fn ($query) => $query->whereIn('id', $visible->all()))
             ->when($jobId, fn ($query) => $query->where('job_id', $jobId))
             ->get()
             ->sortBy(fn (Employee $employee) => mb_strtolower($employee->user->name))
             ->values()
-            ->map(function (Employee $employee) use ($details, $days) {
+            ->map(function (Employee $employee) use ($details, $days, $marks) {
                 $mine = ($details->get($employee->id) ?? collect())
                     ->keyBy(fn (ShiftScheduleDetail $detail) => $detail->date->toDateString());
 
                 return [
                     'employee' => $employee,
                     'cells' => $days->map(fn (Carbon $day) => $mine->get($day->toDateString()))->all(),
+                    'marks' => $days->map(fn (Carbon $day) => $marks[$employee->id][$day->toDateString()] ?? null)->all(),
                 ];
             });
     }
 
     // Satu kolom per shift, berisi penugasan pada tanggal tersebut (Leader di urutan atas)
-    public function dayBoard(Carbon $date, ?int $jobId): Collection
+    public function dayBoard(Carbon $date, ?int $jobId, ?User $viewer = null): Collection
     {
+        $visible = $viewer ? $this->visibleEmployeeIds($viewer) : null;
+
         $details = ShiftScheduleDetail::with(self::DETAIL_RELATIONS)
             ->where('date', $date->toDateString())
+            ->when($visible !== null, fn ($query) => $query->whereIn('id_employee', $visible->all()))
             ->when($jobId, fn ($query) => $query->whereHas(
                 'employee', fn ($employee) => $employee->where('job_id', $jobId)
             ))
@@ -82,212 +128,6 @@ class ScheduleService
             ->values();
     }
 
-    // Pesan kesalahan bila penugasan tidak boleh dibuat, atau null bila boleh
-    public function assignmentError(array $data): ?string
-    {
-        $employee = Employee::with('user.role')->findOrFail($data['employee_id']);
-
-        if ($employee->status !== EmployeeStatus::Aktif) {
-            return "{$employee->user->name} tidak aktif.";
-        }
-
-        $alreadyScheduled = ShiftScheduleDetail::where('id_employee', $employee->id)
-            ->where('date', $data['date'])
-            ->exists();
-
-        if ($alreadyScheduled) {
-            return "{$employee->user->name} sudah punya shift pada tanggal ini.";
-        }
-
-        if ($data['status_lead'] && ! $employee->user->hasRole(Role::LEADER)) {
-            return 'Hanya karyawan dengan role Leader/Head yang bisa dijadikan Leader shift.';
-        }
-
-        return null;
-    }
-
-    public function assign(User $by, array $data): ShiftScheduleDetail
-    {
-        return DB::transaction(function () use ($by, $data) {
-            $schedule = $this->scheduleFor((int) $data['shift_id'], $data['date'], $by);
-
-            $detail = ShiftScheduleDetail::create([
-                'id_schedule' => $schedule->id,
-                'id_employee' => $data['employee_id'],
-                'status_lead' => $data['status_lead'],
-                'date' => $data['date'],
-            ]);
-
-            $shiftName = MasterShift::find($schedule->shift_id)->name;
-            $this->notify(
-                $detail->id_employee,
-                $schedule->id,
-                "Anda dijadwalkan shift {$shiftName} pada {$this->dateLabel($detail->date)}"
-            );
-
-            return $detail;
-        });
-    }
-
-    /**
-     * Menambah jadwal untuk banyak karyawan, tanggal, dan shift sekaligus dalam satu transaksi.
-     * Kombinasi yang ditolak assignmentError() dilewati dan dilaporkan, bukan menggagalkan semuanya.
-     * Karena satu karyawan hanya boleh punya satu shift per tanggal, bila beberapa shift dipilih
-     * maka shift pertama pada urutan $shiftIds yang tersimpan dan sisanya dilewati.
-     *
-     * @param  array<int>  $employeeIds
-     * @param  array<string>  $dates  Format Y-m-d
-     * @param  array<int>  $shiftIds
-     * @return array{created: int, skipped: int, reasons: array<int, string>}
-     */
-    public function assignMany(User $by, array $employeeIds, array $dates, array $shiftIds, bool $statusLead): array
-    {
-        sort($dates);
-
-        return DB::transaction(function () use ($by, $employeeIds, $dates, $shiftIds, $statusLead) {
-            $created = 0;
-            $skipped = 0;
-            $reasons = [];
-
-            foreach ($employeeIds as $employeeId) {
-                foreach ($dates as $date) {
-                    foreach ($shiftIds as $shiftId) {
-                        $item = [
-                            'employee_id' => (int) $employeeId,
-                            'shift_id' => (int) $shiftId,
-                            'date' => $date,
-                            'status_lead' => $statusLead,
-                        ];
-
-                        if ($error = $this->assignmentError($item)) {
-                            $skipped++;
-                            $reasons[$error] = $error;
-                            continue;
-                        }
-
-                        $this->assign($by, $item);
-                        $created++;
-                    }
-                }
-            }
-
-            return [
-                'created' => $created,
-                'skipped' => $skipped,
-                'reasons' => array_values($reasons),
-            ];
-        });
-    }
-
-    // Pesan kesalahan bila penugasan tidak boleh diubah, atau null bila boleh
-    public function updateError(ShiftScheduleDetail $detail, array $data): ?string
-    {
-        $detail->loadMissing('employee.user.role', 'schedule');
-
-        if ($data['status_lead'] && ! $detail->employee->user->hasRole(Role::LEADER)) {
-            return 'Hanya karyawan dengan role Leader/Head yang bisa dijadikan Leader shift.';
-        }
-
-        $shiftChanged = (int) $detail->schedule->shift_id !== (int) $data['shift_id'];
-
-        if ($shiftChanged && $this->hasRequests($detail)) {
-            return 'Penugasan ini punya pengajuan izin/tukar shift, jadi shift-nya tidak bisa diubah.';
-        }
-
-        return null;
-    }
-
-    // Mengubah shift dan status Leader. Karyawan dan tanggal tidak berubah
-    public function update(User $by, ShiftScheduleDetail $detail, array $data): void
-    {
-        $detail->loadMissing('schedule');
-        $oldShiftId = (int) $detail->schedule->shift_id;
-
-        DB::transaction(function () use ($by, $detail, $data, $oldShiftId) {
-            $schedule = $this->scheduleFor((int) $data['shift_id'], $detail->date->toDateString(), $by);
-
-            $detail->update([
-                'id_schedule' => $schedule->id,
-                'status_lead' => $data['status_lead'],
-            ]);
-
-            if ($oldShiftId !== (int) $data['shift_id']) {
-                $shiftName = MasterShift::find($data['shift_id'])->name;
-                $this->notify(
-                    $detail->id_employee,
-                    $schedule->id,
-                    "Shift Anda pada {$this->dateLabel($detail->date)} diubah menjadi {$shiftName}"
-                );
-            }
-        });
-    }
-
-    public function removeError(ShiftScheduleDetail $detail): ?string
-    {
-        return $this->hasRequests($detail)
-            ? 'Penugasan ini punya pengajuan izin/tukar shift, jadi tidak bisa dihapus.'
-            : null;
-    }
-
-    // Menghapus penugasan, sehingga karyawan menjadi Libur pada tanggal itu
-    public function remove(ShiftScheduleDetail $detail): void
-    {
-        $detail->loadMissing('schedule.masterShift');
-
-        DB::transaction(function () use ($detail) {
-            $this->notify(
-                $detail->id_employee,
-                $detail->id_schedule,
-                "Jadwal shift {$detail->schedule->masterShift->name} Anda pada {$this->dateLabel($detail->date)} dibatalkan"
-            );
-
-            $detail->delete();
-        });
-    }
-
-    // Apakah penugasan ini dirujuk pengajuan (sebagai pengaju atau sebagai rekan tukar)
-    public function hasRequests(ShiftScheduleDetail $detail): bool
-    {
-        return ShiftRequest::where(fn ($query) => $query
-                ->where('employee_id', $detail->id_employee)
-                ->where('schedule_id', $detail->id_schedule))
-            ->orWhere(fn ($query) => $query
-                ->where('partner_id', $detail->id_employee)
-                ->where('partner_schedule_id', $detail->id_schedule))
-            ->exists();
-    }
-
-    // Menukar jadwal dua karyawan sesuai pengajuan tukar shift yang disetujui
-    public function swapAssignments(ShiftRequest $request): void
-    {
-        $mine = ShiftScheduleDetail::where('id_schedule', $request->schedule_id)
-            ->where('id_employee', $request->employee_id)
-            ->first();
-
-        $theirs = ShiftScheduleDetail::where('id_schedule', $request->partner_schedule_id)
-            ->where('id_employee', $request->partner_id)
-            ->first();
-
-        if (! $mine || ! $theirs) {
-            throw new DomainException('Jadwal sudah berubah, pengajuan ini tidak bisa disetujui.');
-        }
-
-        if (! $mine->date->isSameDay($theirs->date)) {
-            throw new DomainException('Tanggal kedua jadwal tidak sama lagi, pengajuan ini tidak bisa disetujui.');
-        }
-
-        if ($mine->status_lead || $theirs->status_lead) {
-            throw new DomainException('Leader shift tidak bisa tukar shift.');
-        }
-
-        DB::transaction(function () use ($mine, $theirs) {
-            $mineSchedule = $mine->id_schedule;
-
-            $mine->update(['id_schedule' => $theirs->id_schedule]);
-            $theirs->update(['id_schedule' => $mineSchedule]);
-        });
-    }
-
     // Shift yang sedang berjalan pada $now (termasuk shift malam yang melewati tengah malam)
     public function running(Carbon $now): Collection
     {
@@ -305,19 +145,6 @@ class ScheduleService
             ->filter(fn (ShiftScheduleDetail $detail) => $this->startsAt($detail)->gt($now))
             ->sortBy(fn (ShiftScheduleDetail $detail) => $this->startsAt($detail)->timestamp)
             ->values();
-    }
-
-    // Satu baris jadwal adalah satu shift pada satu tanggal. Dicari lewat tanggal detailnya
-    private function scheduleFor(int $shiftId, string $date, User $by): ShiftSchedule
-    {
-        return ShiftSchedule::where('shift_id', $shiftId)
-            ->whereHas('details', fn ($query) => $query->where('date', $date))
-            ->first()
-            ?? ShiftSchedule::create([
-                'shift_id' => $shiftId,
-                'status' => 'terbit',
-                'publish_by' => $by->id,
-            ]);
     }
 
     private function detailsOn(array $dates): Collection
@@ -338,20 +165,5 @@ class ScheduleService
         $end = $detail->date->copy()->setTimeFromTimeString($detail->schedule->masterShift->end_date);
 
         return $end->lte($start) ? $end->addDay() : $end;
-    }
-
-    private function dateLabel(Carbon $date): string
-    {
-        return $date->copy()->locale('id')->translatedFormat('l, j M Y');
-    }
-
-    private function notify(int $employeeId, int $scheduleId, string $message): void
-    {
-        Notification::create([
-            'id_employee' => $employeeId,
-            'schedule_id' => $scheduleId,
-            'status' => 'belum_dibaca',
-            'message' => $message,
-        ]);
     }
 }
