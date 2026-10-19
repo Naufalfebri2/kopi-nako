@@ -26,17 +26,26 @@ class ScheduleController extends Controller
 
     public function index(Request $request): View
     {
+        $user = $request->user();
         $view = $request->query('tampilan') === 'harian' ? 'harian' : 'mingguan';
         $date = $this->parseDate($request->query('tanggal'));
         $jobId = $request->integer('jabatan') ?: null;
-        $canEdit = $request->user()->hasRole(Role::SUPERVISOR);
+        $canEdit = $user->hasRole(Role::SUPERVISOR);
         $step = $view === 'mingguan' ? 7 : 1;
+
+        // Jabatan pada dropdown filter: Supervisor semua, selain itu hanya jabatan karyawan yang terlihat.
+        $visible = $this->schedules->visibleEmployeeIds($user);
+        $jobs = $visible === null
+            ? Job::orderBy('name')->get()
+            : Job::whereIn('id', \App\Models\Employee::whereIn('id', $visible->all())->pluck('job_id'))
+                ->orderBy('name')
+                ->get();
 
         $data = [
             'view' => $view,
             'date' => $date,
             'jobId' => $jobId,
-            'jobs' => Job::orderBy('name')->get(),
+            'jobs' => $jobs,
             'shifts' => MasterShift::orderBy('start_date')->get(),
             'canEdit' => $canEdit,
             'employees' => $canEdit ? $this->schedules->activeEmployees() : collect(),
@@ -53,9 +62,9 @@ class ScheduleController extends Controller
         if ($view === 'mingguan') {
             $days = $this->schedules->weekDays($date);
             $data['days'] = $days;
-            $data['rows'] = $this->schedules->weeklyRows($days, $jobId);
+            $data['rows'] = $this->schedules->weeklyRows($days, $jobId, $user);
         } else {
-            $data['columns'] = $this->schedules->dayBoard($date, $jobId);
+            $data['columns'] = $this->schedules->dayBoard($date, $jobId, $user);
         }
 
         return view('jadwal.index', $data);
