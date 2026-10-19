@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\MasterEmployeeController;
 use App\Http\Controllers\MasterLeaveTypeController;
 use App\Http\Controllers\MasterShiftController;
 use App\Http\Controllers\NotificationController;
@@ -67,7 +68,10 @@ Route::middleware('auth')->group(function () {
         Route::patch('/karyawan/{employee}/nonaktif', [EmployeeController::class, 'deactivate'])->name('karyawan.deactivate');
 
         // Master data. Shift dan jenis izin hanya tambah dan ubah, tanpa hapus.
+        // Karyawan memakai ulang route karyawan.* di atas.
         Route::prefix('master')->name('master.')->group(function () {
+            Route::get('/employee', [MasterEmployeeController::class, 'index'])->name('employee.index');
+
             Route::get('/shift', [MasterShiftController::class, 'index'])->name('shift.index');
             Route::post('/shift', [MasterShiftController::class, 'store'])->name('shift.store');
             Route::put('/shift/{masterShift}', [MasterShiftController::class, 'update'])->name('shift.update');

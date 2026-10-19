@@ -73,8 +73,11 @@ class EmployeeController extends Controller
                 ->withInput($oldInput);
         }
 
+        // Dari halaman Master Employee kembali ke sana, selain itu ke Dashboard seperti semula.
+        $target = $request->input('dari') === 'master' ? 'master.employee.index' : 'dashboard';
+
         return redirect()
-            ->route('dashboard')
+            ->route($target)
             ->with('notice', "Karyawan {$employee->user->name} berhasil ditambahkan.");
     }
 
