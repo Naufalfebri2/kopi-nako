@@ -3,6 +3,8 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\MasterLeaveTypeController;
+use App\Http\Controllers\MasterShiftController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ScheduleController;
@@ -63,5 +65,16 @@ Route::middleware('auth')->group(function () {
         Route::put('/karyawan/{employee}', [EmployeeController::class, 'update'])->name('karyawan.update');
         Route::delete('/karyawan/{employee}', [EmployeeController::class, 'destroy'])->name('karyawan.destroy');
         Route::patch('/karyawan/{employee}/nonaktif', [EmployeeController::class, 'deactivate'])->name('karyawan.deactivate');
+
+        // Master data. Shift dan jenis izin hanya tambah dan ubah, tanpa hapus.
+        Route::prefix('master')->name('master.')->group(function () {
+            Route::get('/shift', [MasterShiftController::class, 'index'])->name('shift.index');
+            Route::post('/shift', [MasterShiftController::class, 'store'])->name('shift.store');
+            Route::put('/shift/{masterShift}', [MasterShiftController::class, 'update'])->name('shift.update');
+
+            Route::get('/leave-type', [MasterLeaveTypeController::class, 'index'])->name('leave.index');
+            Route::post('/leave-type', [MasterLeaveTypeController::class, 'store'])->name('leave.store');
+            Route::put('/leave-type/{leaveType}', [MasterLeaveTypeController::class, 'update'])->name('leave.update');
+        });
     });
 });
