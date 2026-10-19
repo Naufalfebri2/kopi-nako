@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\Division;
 use App\Services\RequestApproval;
 use App\Enums\EmployeeStatus;
 use App\Enums\RequestStatus;
@@ -19,13 +20,15 @@ class RequestSubmission
 {
     private const HORIZON_DAYS = 45;
 
-    public function __construct(private RequestApproval $approval)
+    public function __construct(private RequestApproval $approval, private Division $divisions)
     {
     }
 
-    // Jadwal mendatang milik karyawan, beserta rekan yang bisa diajak tukar shift
+    // Jadwal mendatang milik karyawan, beserta rekan sedivisi yang bisa diajak tukar shift
     public function options(Employee $employee): Collection
     {
+        $employee->loadMissing('job');
+        $ownJob = $employee->job?->name;
         $busy = $this->busyKeys();
 
         $own = ShiftScheduleDetail::with('schedule.masterShift')
@@ -36,13 +39,14 @@ class RequestSubmission
             ->reject(fn (ShiftScheduleDetail $detail) => $busy->contains($this->key($detail->id_employee, $detail->id_schedule)))
             ->values();
 
-        $candidates = ShiftScheduleDetail::with(['schedule.masterShift', 'employee.user'])
+        $candidates = ShiftScheduleDetail::with(['schedule.masterShift', 'employee.user', 'employee.job'])
             ->whereIn('date', $own->map(fn (ShiftScheduleDetail $d) => $d->date->toDateString())->unique()->all())
             ->where('status_lead', false)
             ->where('id_employee', '!=', $employee->id)
             ->whereHas('employee', fn ($query) => $query->where('status', EmployeeStatus::Aktif))
             ->get()
             ->reject(fn (ShiftScheduleDetail $detail) => $busy->contains($this->key($detail->id_employee, $detail->id_schedule)))
+            ->filter(fn (ShiftScheduleDetail $detail) => $this->divisions->same($ownJob, $detail->employee->job?->name))
             ->groupBy(fn (ShiftScheduleDetail $detail) => $detail->date->toDateString());
 
         return $own->map(function (ShiftScheduleDetail $detail) use ($candidates) {
@@ -119,7 +123,7 @@ class RequestSubmission
             throw new DomainException('Leader pada shift ini tidak bisa tukar shift.');
         }
 
-        $partner = ShiftScheduleDetail::with(['schedule.masterShift', 'employee.user'])->find($partnerDetailId);
+        $partner = ShiftScheduleDetail::with(['schedule.masterShift', 'employee.user', 'employee.job'])->find($partnerDetailId);
 
         if (! $partner) {
             throw new DomainException('Rekan tidak ditemukan.');
@@ -143,6 +147,12 @@ class RequestSubmission
 
         if ($partner->employee->status !== EmployeeStatus::Aktif) {
             throw new DomainException('Rekan yang dipilih tidak aktif.');
+        }
+
+        $employee->loadMissing('job');
+
+        if (! $this->divisions->same($employee->job?->name, $partner->employee->job?->name)) {
+            throw new DomainException('Rekan harus berasal dari divisi yang sama.');
         }
 
         if ($busy->contains($this->key($partner->id_employee, $partner->id_schedule))) {

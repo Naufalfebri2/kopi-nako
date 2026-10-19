@@ -37,7 +37,8 @@ class SwapApprovalTest extends TestCase
         $this->supervisorRole = Role::create(['name' => Role::SUPERVISOR]);
         $this->leaderRole     = Role::create(['name' => Role::LEADER]);
         $this->karyawanRole   = Role::create(['name' => Role::KARYAWAN]);
-        $this->job            = Job::create(['name' => 'Barista']);
+        // Jabatan masuk divisi Barista, supaya tukar shift antar pelaku di test ini sesama divisi.
+        $this->job            = Job::create(['name' => 'Junior Barista']);
         $this->pagi  = MasterShift::create(['name' => 'Pagi', 'start_date' => '09:00:00', 'end_date' => '15:00:00']);
         $this->siang = MasterShift::create(['name' => 'Siang', 'start_date' => '15:00:00', 'end_date' => '21:00:00']);
         $this->date  = today()->addDay()->toDateString();
