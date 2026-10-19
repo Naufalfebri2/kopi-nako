@@ -3,13 +3,23 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ScheduleDeliveryController;
 use App\Http\Controllers\ShiftRequestController;
+use App\Http\Middleware\EnsureRole;
+use App\Models\Role;
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/dashboard');
+// Supervisor ke Dashboard, Leader/Head dan Karyawan ke Jadwal Shift. Tamu diarahkan ke login lewat Dashboard.
+Route::get('/', function () {
+    $user = auth()->user();
+
+    return $user && ! $user->hasRole(Role::SUPERVISOR)
+        ? redirect()->route('jadwal.index')
+        : redirect()->route('dashboard');
+})->name('beranda');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -18,13 +28,11 @@ Route::middleware('guest')->group(function () {
 
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::post('/notifikasi/baca', [NotificationController::class, 'read'])->name('notifikasi.baca');
 
+    // Jadwal Shift dan Pengajuan: semua role (isi datanya dibatasi di controller).
     Route::get('/jadwal', [ScheduleController::class, 'index'])->name('jadwal.index');
     Route::post('/jadwal', [ScheduleController::class, 'store'])->name('jadwal.store');
-    Route::post('/jadwal/kirim', [ScheduleDeliveryController::class, 'store'])
-        ->middleware('throttle:5,1')
-        ->name('jadwal.kirim');
     Route::put('/jadwal/{detail}', [ScheduleController::class, 'update'])->name('jadwal.update');
     Route::delete('/jadwal/{detail}', [ScheduleController::class, 'destroy'])->name('jadwal.destroy');
 
@@ -34,13 +42,22 @@ Route::middleware('auth')->group(function () {
     Route::get('/pengajuan/{shiftRequest}', [ShiftRequestController::class, 'show'])->name('pengajuan.show');
     Route::post('/pengajuan/{shiftRequest}/keputusan', [ShiftRequestController::class, 'decide'])->name('pengajuan.decide');
 
-    Route::get('/laporan', [ReportController::class, 'index'])->name('laporan.index');
-    Route::get('/laporan/pdf', [ReportController::class, 'pdf'])->name('laporan.pdf');
+    // Hanya Supervisor.
+    Route::middleware(EnsureRole::class.':'.Role::SUPERVISOR)->group(function () {
+        Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    Route::post('/karyawan', [EmployeeController::class, 'store'])
-        ->middleware('throttle:20,1')
-        ->name('karyawan.store');
-    Route::put('/karyawan/{employee}', [EmployeeController::class, 'update'])->name('karyawan.update');
-    Route::delete('/karyawan/{employee}', [EmployeeController::class, 'destroy'])->name('karyawan.destroy');
-    Route::patch('/karyawan/{employee}/nonaktif', [EmployeeController::class, 'deactivate'])->name('karyawan.deactivate');
+        Route::post('/jadwal/kirim', [ScheduleDeliveryController::class, 'store'])
+            ->middleware('throttle:5,1')
+            ->name('jadwal.kirim');
+
+        Route::get('/laporan', [ReportController::class, 'index'])->name('laporan.index');
+        Route::get('/laporan/pdf', [ReportController::class, 'pdf'])->name('laporan.pdf');
+
+        Route::post('/karyawan', [EmployeeController::class, 'store'])
+            ->middleware('throttle:20,1')
+            ->name('karyawan.store');
+        Route::put('/karyawan/{employee}', [EmployeeController::class, 'update'])->name('karyawan.update');
+        Route::delete('/karyawan/{employee}', [EmployeeController::class, 'destroy'])->name('karyawan.destroy');
+        Route::patch('/karyawan/{employee}/nonaktif', [EmployeeController::class, 'deactivate'])->name('karyawan.deactivate');
+    });
 });

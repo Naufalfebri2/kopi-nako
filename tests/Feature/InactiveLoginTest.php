@@ -36,7 +36,7 @@ class InactiveLoginTest extends TestCase
         $this->makeEmployee(EmployeeStatus::Aktif);
 
         $this->post('/login', ['email' => 'artie@example.com', 'password' => 'password123'])
-            ->assertRedirect(route('dashboard'));
+            ->assertRedirect(route('beranda'));
 
         $this->assertAuthenticated();
     }
@@ -59,6 +59,6 @@ class InactiveLoginTest extends TestCase
         User::create(['name' => 'Admin', 'email' => 'admin@example.com', 'password' => 'password123', 'id_role' => $role->id]);
 
         $this->post('/login', ['email' => 'admin@example.com', 'password' => 'password123'])
-            ->assertRedirect(route('dashboard'));
+            ->assertRedirect(route('beranda'));
     }
 }

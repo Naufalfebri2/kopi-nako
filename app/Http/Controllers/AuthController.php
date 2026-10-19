@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Enums\EmployeeStatus;
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -42,7 +41,7 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard'));
+        return redirect()->intended(route('beranda'));
     }
 
     public function logout(Request $request): RedirectResponse
