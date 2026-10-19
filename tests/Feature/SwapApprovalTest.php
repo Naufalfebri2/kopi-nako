@@ -114,7 +114,8 @@ class SwapApprovalTest extends TestCase
         $this->assertSame(RequestStatus::Ditolak, $request->fresh()->status);
         $this->assertSame($artieSchedule, $this->detail($this->artie)->id_schedule);
 
-        $steps = $this->actingAs($this->spv->user)
+        // Stepper hanya dikirim ke pengaju, jadi dibaca sebagai Artie.
+        $steps = $this->actingAs($this->artie->user)
             ->get(route('pengajuan.show', $request))->viewData('steps');
         $this->assertSame('rejected', $steps[1]['state']);
         $this->assertSame('Tidak dilanjutkan', end($steps)['meta']);

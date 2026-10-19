@@ -8,6 +8,7 @@ use App\Models\LeaveType;
 use App\Models\Role;
 use App\Models\ShiftRequest;
 use App\Models\User;
+use App\Rules\ClearReason;
 use App\Services\RequestApproval;
 use App\Services\RequestSubmission;
 use App\Services\ScheduleService;
@@ -52,14 +53,13 @@ class ShiftRequestController extends Controller
             'detail_id' => ['required', 'integer'],
             'leave_id' => ['required_if:jenis,izin', 'nullable', 'integer', 'exists:leave_type,id'],
             'partner_detail_id' => ['required_if:jenis,tukar', 'nullable', 'integer'],
-            'reason' => ['required', 'string', 'min:10', 'max:500'],
+            'reason' => ['required', 'string', 'max:500', new ClearReason],
         ], [
             'jenis.required' => 'Pilih jenis pengajuan.',
             'detail_id.required' => 'Pilih jadwal Anda.',
             'leave_id.required_if' => 'Pilih jenis izin.',
             'partner_detail_id.required_if' => 'Pilih rekan untuk tukar shift.',
             'reason.required' => 'Alasan wajib diisi.',
-            'reason.min' => 'Alasan minimal 10 karakter.',
             'reason.max' => 'Alasan maksimal 500 karakter.',
         ]);
 
@@ -72,7 +72,7 @@ class ShiftRequestController extends Controller
         return redirect()->route('pengajuan.index')->with('notice', 'Pengajuan berhasil dikirim.');
     }
 
-    // Isi panel detail (dimuat lewat fetch). Stepper hanya ditampilkan untuk pengaju.
+    // Isi panel detail (dimuat lewat fetch). Stepper hanya untuk pengaju.
     public function show(Request $request, ShiftRequest $shiftRequest): View
     {
         $user = $request->user();
@@ -83,10 +83,12 @@ class ShiftRequestController extends Controller
             'partner.user', 'partnerSchedule.masterShift', 'leaveType',
         ]);
 
+        $showStepper = $user->employee?->id === $shiftRequest->employee_id;
+
         return view('pengajuan._detail', [
             'req' => $shiftRequest,
-            'showStepper' => $user->employee?->id === $shiftRequest->employee_id,
-            'steps' => $this->approval->timeline($shiftRequest),
+            'showStepper' => $showStepper,
+            'steps' => $showStepper ? $this->approval->timeline($shiftRequest) : [],
             'canDecide' => $this->approval->canDecide($user, $shiftRequest),
             'awaiting' => $this->approval->awaitingStep($shiftRequest),
         ]);
