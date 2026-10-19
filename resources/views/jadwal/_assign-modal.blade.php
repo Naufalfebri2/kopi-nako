@@ -208,25 +208,6 @@
             dateFrom.addEventListener('change', refresh);
             dateTo.addEventListener('change', refresh);
 
-            // Kompatibel dengan skrip lama: klik sel "Libur" yang mengisi
-            // document.getElementById('assignEmployee').value = id akan mencentang satu karyawan itu saja.
-            Object.defineProperty(list, 'value', {
-                configurable: true,
-                get: function() {
-                    for (var i = 0; i < boxes.length; i++)
-                        if (boxes[i].checked) return boxes[i].value;
-                    return '';
-                },
-                set: function(v) {
-                    var id = String(v === null || v === undefined ? '' : v);
-                    boxes.forEach(function(b) {
-                        b.checked = id !== '' && b.value === id;
-                    });
-                    all.checked = false;
-                    refresh();
-                }
-            });
-
             // Kirim: ubah rentang tanggal menjadi dates[] yang dibaca server.
             form.addEventListener('submit', function(e) {
                 form.querySelectorAll('input[data-generated]').forEach(function(el) {
