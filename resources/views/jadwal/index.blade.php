@@ -50,19 +50,35 @@
             </select>
         </form>
 
-        @if ($canEdit)
-            <form method="POST" action="{{ route('jadwal.kirim') }}" class="d-flex align-items-center gap-2 ms-auto"
-                onsubmit="return confirm('Kirim jadwal (PDF) ke email semua karyawan yang punya jadwal pada periode ini?')">
-                @csrf
-                <input type="hidden" name="tanggal" value="{{ $date->toDateString() }}">
-                <select name="periode" class="form-select kn-filter" aria-label="Periode jadwal yang dikirim">
-                    <option value="mingguan">Satu minggu ini</option>
-                    <option value="bulanan">Satu bulan ini</option>
-                </select>
-                <button type="submit" class="btn-kn-outline kn-btn-sm">Kirim Jadwal</button>
-            </form>
+        @if ($canExport)
+            <div class="d-flex flex-wrap align-items-center gap-2 ms-auto">
+                <a href="{{ route(
+                    'jadwal.export',
+                    array_filter([
+                        'tampilan' => $view,
+                        'tanggal' => $date->toDateString(),
+                        'jabatan' => $jobId,
+                    ]),
+                ) }}"
+                    class="btn-kn-outline kn-btn-sm">
+                    <i class="fa-solid fa-file-excel me-1"></i>Ekspor Excel
+                </a>
 
-            <button type="button" class="btn-kn kn-btn-sm" data-assign>Tambah Shift</button>
+                @if ($canEdit)
+                    <form method="POST" action="{{ route('jadwal.kirim') }}" class="d-flex align-items-center gap-2"
+                        onsubmit="return confirm('Kirim jadwal (PDF) ke email semua karyawan yang punya jadwal pada periode ini?')">
+                        @csrf
+                        <input type="hidden" name="tanggal" value="{{ $date->toDateString() }}">
+                        <select name="periode" class="form-select kn-filter" aria-label="Periode jadwal yang dikirim">
+                            <option value="mingguan">Satu minggu ini</option>
+                            <option value="bulanan">Satu bulan ini</option>
+                        </select>
+                        <button type="submit" class="btn-kn-outline kn-btn-sm">Kirim Jadwal</button>
+                    </form>
+
+                    <button type="button" class="btn-kn kn-btn-sm" data-assign>Tambah Shift</button>
+                @endif
+            </div>
         @endif
     </div>
 

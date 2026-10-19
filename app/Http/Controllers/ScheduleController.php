@@ -7,6 +7,7 @@ use App\Models\Job;
 use App\Models\MasterShift;
 use App\Models\Role;
 use App\Models\ShiftScheduleDetail;
+use App\Services\ScheduleExport;
 use App\Services\ScheduleService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -14,20 +15,21 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 class ScheduleController extends Controller
 {
     private const MAX_COMBINATIONS = 200;
 
-    public function __construct(private ScheduleService $schedules)
+    public function __construct(private ScheduleService $schedules, private ScheduleExport $export)
     {
     }
 
     public function index(Request $request): View
     {
         $user = $request->user();
-        $view = $request->query('tampilan') === 'harian' ? 'harian' : 'mingguan';
+        $view = $this->viewMode($request);
         $date = $this->parseDate($request->query('tanggal'));
         $jobId = $request->integer('jabatan') ?: null;
         $canEdit = $user->hasRole(Role::SUPERVISOR);
@@ -48,6 +50,7 @@ class ScheduleController extends Controller
             'jobs' => $jobs,
             'shifts' => MasterShift::orderBy('start_date')->get(),
             'canEdit' => $canEdit,
+            'canExport' => $canEdit || $user->hasRole(Role::LEADER),
             'employees' => $canEdit ? $this->schedules->activeEmployees() : collect(),
             // Daftar role untuk modal ubah data karyawan, hanya dimuat untuk Supervisor
             'roles' => $canEdit ? Role::orderBy('name')->get(['id', 'name']) : collect(),
@@ -68,6 +71,26 @@ class ScheduleController extends Controller
         }
 
         return view('jadwal.index', $data);
+    }
+
+    // Unduh Excel untuk minggu atau hari yang sedang dibuka, mengikuti filter jabatan. Tidak disimpan ke disk.
+    public function export(Request $request): StreamedResponse
+    {
+        $user = $request->user();
+        abort_unless($user->hasRole(Role::SUPERVISOR) || $user->hasRole(Role::LEADER), 403);
+
+        $view = $this->viewMode($request);
+        $date = $this->parseDate($request->query('tanggal'));
+        $jobId = $request->integer('jabatan') ?: null;
+
+        $spreadsheet = $this->export->spreadsheet($view, $date, $jobId, $user, $this->rangeLabel($view, $date));
+        $start = $view === 'harian' ? $date : $date->copy()->startOfWeek();
+
+        return response()->streamDownload(
+            fn () => $this->export->write($spreadsheet),
+            'jadwal-shift-'.$view.'-'.$start->toDateString().'.xlsx',
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
+        );
     }
 
     public function store(Request $request): RedirectResponse
@@ -209,13 +232,18 @@ class ScheduleController extends Controller
         return back()->with('notice', 'Jadwal berhasil dihapus.');
     }
 
+    private function viewMode(Request $request): string
+    {
+        return $request->query('tampilan') === 'harian' ? 'harian' : 'mingguan';
+    }
+
     private function parseDate(?string $value): Carbon
     {
         try {
             return $value
                 ? Carbon::createFromFormat('Y-m-d', $value)->startOfDay()
                 : now()->startOfDay();
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return now()->startOfDay();
         }
     }

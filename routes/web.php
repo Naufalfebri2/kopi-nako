@@ -32,6 +32,10 @@ Route::middleware('auth')->group(function () {
 
     // Jadwal Shift dan Pengajuan: semua role (isi datanya dibatasi di controller).
     Route::get('/jadwal', [ScheduleController::class, 'index'])->name('jadwal.index');
+    // Ekspor Excel: Leader dan Supervisor (dicek di controller, Karyawan mendapat 403).
+    Route::get('/jadwal/ekspor', [ScheduleController::class, 'export'])
+        ->middleware('throttle:10,1')
+        ->name('jadwal.export');
     Route::post('/jadwal', [ScheduleController::class, 'store'])->name('jadwal.store');
     Route::put('/jadwal/{detail}', [ScheduleController::class, 'update'])->name('jadwal.update');
     Route::delete('/jadwal/{detail}', [ScheduleController::class, 'destroy'])->name('jadwal.destroy');
