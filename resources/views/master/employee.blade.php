@@ -88,6 +88,14 @@
                                     data-email="{{ $employee->user->email }}" data-job="{{ $employee->job_id }}"
                                     data-role="{{ $employee->user->id_role }}"
                                     data-self="{{ $isSelf ? 1 : 0 }}">Ubah</button>
+                                @if ($employee->status === \App\Enums\EmployeeStatus::Nonaktif)
+                                    <form method="POST" action="{{ route('karyawan.activate', $employee) }}"
+                                        class="d-inline" onsubmit="return confirm(@js('Aktifkan kembali ' . $employee->user->name . '? Karyawan akan tampil lagi di Jadwal Shift.'))">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button type="submit" class="btn-kn-outline kn-btn-sm">Aktifkan</button>
+                                    </form>
+                                @endif
                                 @unless ($isSelf)
                                     <button type="button" class="btn-kn-outline kn-btn-sm" data-emp-delete
                                         data-destroy-url="{{ route('karyawan.destroy', $employee) }}"

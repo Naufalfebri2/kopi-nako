@@ -66,6 +66,7 @@ Route::middleware('auth')->group(function () {
         Route::put('/karyawan/{employee}', [EmployeeController::class, 'update'])->name('karyawan.update');
         Route::delete('/karyawan/{employee}', [EmployeeController::class, 'destroy'])->name('karyawan.destroy');
         Route::patch('/karyawan/{employee}/nonaktif', [EmployeeController::class, 'deactivate'])->name('karyawan.deactivate');
+        Route::patch('/karyawan/{employee}/aktif', [EmployeeController::class, 'activate'])->name('karyawan.activate');
 
         // Master data. Shift dan jenis izin hanya tambah dan ubah, tanpa hapus.
         // Karyawan memakai ulang route karyawan.* di atas.

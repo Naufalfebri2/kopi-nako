@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\EmployeeStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\Job;
@@ -169,6 +170,26 @@ class EmployeeController extends Controller
         }
 
         return back()->with('notice', "Karyawan {$employee->user->name} dinonaktifkan dan tidak lagi tampil di jadwal.");
+    }
+
+    // Kebalikan dari deactivate: jadwal dan riwayat tidak pernah dihapus, jadi langsung tampil lagi.
+    public function activate(Request $request, Employee $employee): RedirectResponse
+    {
+        abort_unless($request->user()->hasRole(Role::SUPERVISOR), 403);
+
+        if ($employee->status === EmployeeStatus::Aktif) {
+            return back()->with('error', 'Karyawan ini sudah aktif.');
+        }
+
+        try {
+            $employee->forceFill(['status' => EmployeeStatus::Aktif])->save();
+        } catch (Throwable $e) {
+            Log::error('Pengaktifan karyawan gagal.', ['exception' => $e::class]);
+
+            return back()->with('error', 'Karyawan belum dapat diaktifkan. Silakan coba lagi.');
+        }
+
+        return back()->with('notice', "Karyawan {$employee->user->name} diaktifkan kembali dan tampil lagi di jadwal.");
     }
 
     // Jabatan harus sesuai dengan role akses (aturan dari klien).
