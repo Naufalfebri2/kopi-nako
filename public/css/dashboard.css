@@ -180,3 +180,23 @@
     color: var(--muted);
     font-weight: 500;
 }
+
+/* Paginasi: mengikuti palet aplikasi (Bootstrap 5.3 membaca variabel --bs-pagination-*) */
+.pagination {
+    --bs-pagination-color: var(--ink);
+    --bs-pagination-bg: var(--paper);
+    --bs-pagination-border-color: var(--border);
+    --bs-pagination-hover-color: var(--accent-deep);
+    --bs-pagination-hover-bg: var(--accent-soft);
+    --bs-pagination-hover-border-color: var(--border);
+    --bs-pagination-focus-color: var(--accent-deep);
+    --bs-pagination-focus-bg: var(--accent-soft);
+    --bs-pagination-focus-box-shadow: 0 0 0 0.2rem var(--accent-soft);
+    --bs-pagination-active-color: #fff;
+    --bs-pagination-active-bg: var(--ink);
+    --bs-pagination-active-border-color: var(--ink);
+    --bs-pagination-disabled-color: var(--muted);
+    --bs-pagination-disabled-bg: var(--surface);
+    --bs-pagination-disabled-border-color: var(--border);
+    --bs-pagination-font-size: 13px;
+}
