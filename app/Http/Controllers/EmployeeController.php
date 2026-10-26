@@ -33,23 +33,19 @@ class EmployeeController extends Controller
             'name'     => trim((string) $request->input('name')),
             'email'    => Str::lower(trim((string) $request->input('email'))),
             'no_phone' => preg_replace('/[\s\-()]+/', '', (string) $request->input('no_phone')),
-            'nik'      => trim((string) $request->input('nik')),
         ]);
 
+        // Kode karyawan tidak diisi dari form: dibuat otomatis oleh EmployeeRegistration.
         $validator = Validator::make($request->all(), [
             'name'     => ['required', 'string', 'max:255'],
             'email'    => ['required', 'email', 'max:255', 'unique:users,email'],
             'no_phone' => ['required', 'regex:/^(\+62|62|0)8\d{8,12}$/'],
-            'nik'      => ['required', 'string', 'max:20', 'unique:employees,nik'],
             'job_id'   => ['required', 'exists:job,id'],
             'id_role'  => ['required', 'exists:roles,id'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ], $this->messages() + [
             'no_phone.required'  => 'Nomor telepon wajib diisi.',
             'no_phone.regex'     => 'Nomor telepon tidak valid. Contoh: 081234567890.',
-            'nik.required'       => 'NIK wajib diisi.',
-            'nik.max'            => 'NIK maksimal 20 karakter.',
-            'nik.unique'         => 'NIK sudah terdaftar.',
             'password.required'  => 'Kata sandi wajib diisi.',
             'password.min'       => 'Kata sandi minimal 8 karakter.',
             'password.confirmed' => 'Konfirmasi kata sandi tidak cocok.',
@@ -66,7 +62,7 @@ class EmployeeController extends Controller
         try {
             $employee = $registration->register($user, $validator->validated());
         } catch (Throwable $e) {
-            // Hanya nama kelas: pesan QueryException bisa memuat NIK/kata sandi dari binding SQL.
+            // Hanya nama kelas: pesan QueryException bisa memuat data dari binding SQL.
             Log::error('Pendaftaran karyawan gagal.', ['exception' => $e::class]);
 
             return back()

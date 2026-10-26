@@ -23,7 +23,7 @@
     };
     var STEP_FIELDS = {
         1: ["name", "email", "no_phone"],
-        2: ["nik", "job_id", "id_role", "password", "password_confirmation"],
+        2: ["job_id", "id_role", "password", "password_confirmation"],
     };
     var current = parseInt(modalEl.dataset.startStep, 10) || 1;
 
@@ -52,9 +52,6 @@
             return /^(\+62|62|0)8\d{8,12}$/.test(n)
                 ? ""
                 : "Nomor telepon tidak valid. Contoh: 081234567890.";
-        },
-        nik: function (v) {
-            return v.trim() ? "" : "NIK wajib diisi.";
         },
         job_id: function (v) {
             return v ? "" : "Jabatan wajib dipilih.";
@@ -96,7 +93,6 @@
             name: el("name").value.trim(),
             email: el("email").value.trim().toLowerCase(),
             no_phone: normalizePhone(el("no_phone").value),
-            nik: el("nik").value.trim(),
             job_id: el("job_id").selectedOptions[0]
                 ? el("job_id").selectedOptions[0].text
                 : "",

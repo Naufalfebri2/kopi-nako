@@ -3,7 +3,6 @@
         'name' => 1,
         'email' => 1,
         'no_phone' => 1,
-        'nik' => 2,
         'job_id' => 2,
         'id_role' => 2,
         'password' => 2,
@@ -84,19 +83,12 @@
 
                             {{-- Langkah 2 --}}
                             <section data-kn-step="2" class="d-none">
-                                <div class="mb-3">
-                                    <label for="kn-nik" class="form-label">NIK</label>
-                                    <input type="text" class="form-control @error('nik') is-invalid @enderror"
-                                        id="kn-nik" name="nik" value="{{ old('nik') }}" maxlength="20"
-                                        inputmode="numeric" required aria-describedby="kn-err-nik"
-                                        aria-invalid="{{ $errors->has('nik') ? 'true' : 'false' }}">
-                                    <div class="invalid-feedback" id="kn-err-nik">{{ $errors->first('nik') }}</div>
-                                </div>
+                                <p class="form-text mb-3">Kode karyawan dibuat otomatis saat data disimpan.</p>
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label for="kn-job_id" class="form-label">Jabatan</label>
-                                        <select class="form-select @error('job_id') is-invalid @enderror"
-                                            id="kn-job_id" name="job_id" required aria-describedby="kn-err-job_id"
+                                        <select class="form-select @error('job_id') is-invalid @enderror" id="kn-job_id"
+                                            name="job_id" required aria-describedby="kn-err-job_id"
                                             aria-invalid="{{ $errors->has('job_id') ? 'true' : 'false' }}">
                                             <option value="">Pilih jabatan</option>
                                             @foreach ($jobs as $job)
@@ -164,8 +156,8 @@
                                     <dd data-kn-sum="email"></dd>
                                     <dt>Nomor telepon</dt>
                                     <dd data-kn-sum="no_phone"></dd>
-                                    <dt>NIK</dt>
-                                    <dd data-kn-sum="nik"></dd>
+                                    <dt>Kode karyawan</dt>
+                                    <dd>Dibuat otomatis saat disimpan</dd>
                                     <dt>Jabatan</dt>
                                     <dd data-kn-sum="job_id"></dd>
                                     <dt>Role akses</dt>

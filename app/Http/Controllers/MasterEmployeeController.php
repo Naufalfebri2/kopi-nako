@@ -14,7 +14,7 @@ class MasterEmployeeController extends Controller
 {
     private const PER_PAGE = 15;
 
-    // Pencarian hanya nama, email, dan jabatan. NIK sengaja tidak dipakai agar tidak masuk URL.
+    // Pencarian hanya nama, email, dan jabatan. Kode karyawan sengaja tidak dipakai agar tidak masuk URL.
     public function index(Request $request): View
     {
         $term = trim(mb_substr((string) $request->query('q'), 0, 100));

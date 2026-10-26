@@ -52,7 +52,7 @@
                 <thead>
                     <tr>
                         <th class="ps-4">Karyawan</th>
-                        <th>NIK</th>
+                        <th>Kode Karyawan</th>
                         <th>Jabatan</th>
                         <th>Role</th>
                         <th>Status</th>
@@ -149,17 +149,11 @@
                         <input type="email" class="form-control" id="addEmail" name="email" maxlength="255"
                             value="{{ old('email') }}" required>
                     </div>
-                    <div class="row g-2">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label small fw-semibold" for="addPhone">Nomor telepon</label>
-                            <input type="text" class="form-control" id="addPhone" name="no_phone" maxlength="20"
-                                value="{{ old('no_phone') }}" placeholder="081234567890" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label small fw-semibold" for="addNik">NIK</label>
-                            <input type="text" class="form-control" id="addNik" name="nik" maxlength="20"
-                                value="{{ old('nik') }}" autocomplete="off" required>
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold" for="addPhone">Nomor telepon</label>
+                        <input type="text" class="form-control" id="addPhone" name="no_phone" maxlength="20"
+                            value="{{ old('no_phone') }}" placeholder="081234567890" required>
+                        <div class="form-text">Kode karyawan dibuat otomatis saat disimpan.</div>
                     </div>
                     <div class="row g-2">
                         <div class="col-md-6 mb-3">

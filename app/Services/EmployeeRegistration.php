@@ -6,10 +6,15 @@ use App\Enums\EmployeeStatus;
 use App\Models\Employee;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\EmployeeCode;
 use Illuminate\Support\Facades\DB;
 
 class EmployeeRegistration
 {
+    public function __construct(private EmployeeCode $codes)
+    {
+    }
+
     public function register(User $by, array $data): Employee
     {
         return DB::transaction(function () use ($by, $data) {
@@ -21,15 +26,16 @@ class EmployeeRegistration
                 'id_role'  => $data['id_role'],
             ]);
 
+            // Kode karyawan dibuat otomatis (YYMM01B001), bukan diisi dari form.
             $employee = Employee::create([
-                'nik'      => $data['nik'],
+                'nik'      => $this->codes->next(),
                 'id_user'  => $user->id,
                 'job_id'   => $data['job_id'],
                 'no_phone' => $data['no_phone'],
                 'status'   => EmployeeStatus::Aktif,
             ]);
 
-            // Pesan sengaja tanpa NIK (data pribadi).
+            // Pesan sengaja tanpa kode karyawan.
             $message = "Karyawan baru, {$user->name}, ditambahkan ke tim oleh {$by->name}";
 
             // Notifikasi menempel ke employee, sama seperti yang dibaca DashboardController.

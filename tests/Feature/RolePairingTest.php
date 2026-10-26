@@ -41,11 +41,12 @@ class RolePairingTest extends TestCase
         ]);
     }
 
+    // Kode karyawan tidak ada di payload: dibuat otomatis oleh sistem.
     private function store(Job $job, Role $role, string $suffix)
     {
         return $this->actingAs($this->spv->user)->post(route('karyawan.store'), [
             'name' => 'Orang '.$suffix, 'email' => "o{$suffix}@example.com", 'no_phone' => '081234567890',
-            'nik' => '9'.$suffix, 'job_id' => $job->id, 'id_role' => $role->id,
+            'job_id' => $job->id, 'id_role' => $role->id,
             'password' => 'rahasia123', 'password_confirmation' => 'rahasia123',
         ]);
     }
@@ -72,7 +73,7 @@ class RolePairingTest extends TestCase
     public function test_ubah_karyawan_juga_memeriksa_pasangan(): void
     {
         $this->store($this->service, $this->staffRole, '1');
-        $emp = Employee::where('nik', '91')->firstOrFail();
+        $emp = User::where('email', 'o1@example.com')->firstOrFail()->employee;
 
         $payload = ['name' => 'Orang 1', 'email' => 'o1@example.com', 'job_id' => $this->service->id, 'id_role' => $this->leaderRole->id];
 

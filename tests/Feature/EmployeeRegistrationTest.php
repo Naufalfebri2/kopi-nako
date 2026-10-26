@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\Job;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\EmployeeCode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -15,8 +16,6 @@ use Tests\TestCase;
 class EmployeeRegistrationTest extends TestCase
 {
     use RefreshDatabase;
-
-    private const NIK = '3674010101010001';
 
     private Job $job;
     private Role $supervisorRole;
@@ -57,18 +56,24 @@ class EmployeeRegistrationTest extends TestCase
         ]);
     }
 
+    // Kode karyawan tidak ada di payload: dibuat otomatis oleh sistem.
     private function payload(array $override = []): array
     {
         return array_merge([
             'name'                  => 'Budi Santoso',
             'email'                 => 'budi@example.com',
             'no_phone'              => '0812-3456-7890',
-            'nik'                   => self::NIK,
             'job_id'                => $this->job->id,
             'id_role'               => $this->karyawanRole->id,
             'password'              => 'rahasia123',
             'password_confirmation' => 'rahasia123',
         ], $override);
+    }
+
+    // Kode karyawan yang dibuat sistem untuk akun dengan email tersebut
+    private function kodeDari(string $email): string
+    {
+        return User::where('email', $email)->firstOrFail()->employee->nik;
     }
 
     public function test_supervisor_dapat_menambah_karyawan(): void
@@ -81,13 +86,16 @@ class EmployeeRegistrationTest extends TestCase
             ->assertSessionHas('notice', 'Karyawan Budi Santoso berhasil ditambahkan.');
 
         $user     = User::where('email', 'budi@example.com')->firstOrFail();
-        $employee = Employee::where('nik', self::NIK)->firstOrFail();
+        $employee = $user->employee;
 
+        $this->assertNotNull($employee);
         $this->assertSame(2, User::count());
         $this->assertSame(1, Employee::count());
         $this->assertSame($user->id, $employee->id_user);
         $this->assertSame(EmployeeStatus::Aktif, $employee->status);
         $this->assertSame('081234567890', $employee->no_phone);
+        $this->assertSame(now()->format('ym').'01B001', $employee->nik);
+        $this->assertTrue(app(EmployeeCode::class)->isValid($employee->nik));
         $this->assertNotSame('rahasia123', $user->password);
         $this->assertTrue(Hash::check('rahasia123', $user->password));
         $this->assertTrue(Auth::validate(['email' => 'budi@example.com', 'password' => 'rahasia123']));
@@ -112,18 +120,14 @@ class EmployeeRegistrationTest extends TestCase
         $this->assertSame(0, Employee::count());
     }
 
-    public function test_email_dan_nik_duplikat_ditolak(): void
+    public function test_email_duplikat_ditolak(): void
     {
         $supervisor = $this->makeUser($this->supervisorRole, 'spv@example.com');
         $this->actingAs($supervisor)->post(route('karyawan.store'), $this->payload());
 
         $this->actingAs($supervisor)
-            ->post(route('karyawan.store'), $this->payload(['nik' => '999']))
+            ->post(route('karyawan.store'), $this->payload())
             ->assertSessionHasErrors(['email' => 'Email sudah digunakan.']);
-
-        $this->actingAs($supervisor)
-            ->post(route('karyawan.store'), $this->payload(['email' => 'lain@example.com']))
-            ->assertSessionHasErrors(['nik' => 'NIK sudah terdaftar.']);
 
         $this->assertSame(1, Employee::count());
     }
@@ -169,7 +173,7 @@ class EmployeeRegistrationTest extends TestCase
         $this->assertSame(0, Employee::count());
     }
 
-    public function test_notifikasi_untuk_supervisor_lain_tanpa_nik(): void
+    public function test_notifikasi_untuk_supervisor_lain_tanpa_kode_karyawan(): void
     {
         $creator       = $this->makeUser($this->supervisorRole, 'spv1@example.com');
         $otherEmployee = $this->makeEmployee($this->supervisorRole, 'spv2@example.com', '111');
@@ -185,7 +189,7 @@ class EmployeeRegistrationTest extends TestCase
         $this->assertNull($n->schedule_id);
         $this->assertNull($n->request_id);
         $this->assertSame("Karyawan baru, Budi Santoso, ditambahkan ke tim oleh {$creator->name}", $n->message);
-        $this->assertStringNotContainsString(self::NIK, $n->message);
+        $this->assertStringNotContainsString($this->kodeDari('budi@example.com'), $n->message);
 
         // Leader tidak menerima notifikasi.
         $this->assertCount(0, $leaderEmp->notifications()->get());
@@ -204,6 +208,6 @@ class EmployeeRegistrationTest extends TestCase
         $response = $this->get(route('dashboard'))->assertOk();
 
         $this->assertSame(1, $response->viewData('stats')['aktif']);
-        $response->assertDontSee(self::NIK);
+        $response->assertDontSee($this->kodeDari('budi@example.com'));
     }
 }
