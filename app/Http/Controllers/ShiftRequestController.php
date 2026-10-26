@@ -72,7 +72,8 @@ class ShiftRequestController extends Controller
         return redirect()->route('pengajuan.index')->with('notice', 'Pengajuan berhasil dikirim.');
     }
 
-    // Isi panel detail (dimuat lewat fetch). Stepper hanya untuk pengaju.
+    // Isi panel detail (dimuat lewat fetch).
+    // Track: pengaju selalu melihat; Supervisor hanya bila pengajuan sudah menjadi riwayat; lainnya tidak.
     public function show(Request $request, ShiftRequest $shiftRequest): View
     {
         $user = $request->user();
@@ -83,7 +84,9 @@ class ShiftRequestController extends Controller
             'partner.user', 'partnerSchedule.masterShift', 'leaveType',
         ]);
 
-        $showStepper = $user->employee?->id === $shiftRequest->employee_id;
+        $isRequester = $user->employee?->id === $shiftRequest->employee_id;
+        $isHistory = $shiftRequest->status !== RequestStatus::Menunggu;
+        $showStepper = $isRequester || ($isHistory && $user->hasRole(Role::SUPERVISOR));
 
         return view('pengajuan._detail', [
             'req' => $shiftRequest,
