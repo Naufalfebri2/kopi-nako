@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\Job;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\EmployeeCode;
 use Illuminate\Database\Seeder;
 
 class StaffSeeder extends Seeder
@@ -34,7 +35,7 @@ class StaffSeeder extends Seeder
         ['Wahyudi', 'Karyawan', 'wahyudi', 'Cook Helper'],
     ];
 
-    public function run(): void
+    public function run(EmployeeCode $codes): void
     {
         $roles = Role::pluck('id', 'name');
         $jobs = Job::pluck('id', 'name');
@@ -47,11 +48,12 @@ class StaffSeeder extends Seeder
                 ['name' => $name, 'password' => 'password123', 'id_role' => $roles[$role]],
             );
 
-            // NIK dan nomor telepon di bawah ini data contoh, bukan data asli
+            // Kode karyawan (YYMM01B001) dibuat EmployeeCode, sama seperti form Tambah Karyawan.
+            // Nomor telepon di bawah ini data contoh, bukan data asli.
             Employee::firstOrCreate(
                 ['id_user' => $user->id],
                 [
-                    'nik' => sprintf('%016d', $number),
+                    'nik' => $codes->next(),
                     'job_id' => $jobs[$job],
                     'no_phone' => sprintf('08000000%04d', $number),
                     'status' => EmployeeStatus::Aktif,
