@@ -24,19 +24,19 @@
         });
     }
 
-    // Form Ajukan Baru
-    const submitEl = document.getElementById("submitDrawer");
+    // Form Ajukan Baru (pop-up)
+    const submitEl = document.getElementById("submitModal");
     if (!submitEl) return;
 
-    const submitDrawer = bootstrap.Offcanvas.getOrCreateInstance(submitEl);
+    const submitModal = bootstrap.Modal.getOrCreateInstance(submitEl);
     document
         .getElementById("openSubmit")
-        .addEventListener("click", () => submitDrawer.show());
+        .addEventListener("click", () => submitModal.show());
 
     const form = document.getElementById("submitForm");
     if (!form.elements.detail_id) {
         // Tidak ada jadwal mendatang: formulir hanya menampilkan pesan
-        if (submitEl.dataset.reopen === "1") submitDrawer.show();
+        if (submitEl.dataset.reopen === "1") submitModal.show();
         return;
     }
 
@@ -116,5 +116,5 @@
     if (oldLeave) form.elements.leave_id.value = oldLeave;
     counter.textContent = reason.value.length + " karakter";
 
-    if (submitEl.dataset.reopen === "1") submitDrawer.show();
+    if (submitEl.dataset.reopen === "1") submitModal.show();
 })();

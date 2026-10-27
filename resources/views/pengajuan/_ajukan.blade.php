@@ -1,17 +1,17 @@
-<div class="offcanvas offcanvas-end kn-drawer" tabindex="-1" id="submitDrawer" aria-labelledby="submitTitle"
+<div class="modal fade" id="submitModal" tabindex="-1" aria-labelledby="submitTitle" aria-hidden="true"
     data-reopen="{{ $errors->any() || (session('error') && old('detail_id')) ? '1' : '' }}">
-    <div class="offcanvas-header">
-        <h5 class="offcanvas-title" id="submitTitle">Ajukan Izin / Tukar Shift</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Tutup"></button>
-    </div>
-
-    <div class="offcanvas-body">
-        <form method="POST" action="{{ route('pengajuan.store') }}" id="submitForm" class="kn-submit-form"
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <form method="POST" action="{{ route('pengajuan.store') }}" id="submitForm" class="modal-content"
             data-old-jenis="{{ old('jenis') }}" data-old-detail="{{ old('detail_id') }}"
             data-old-partner="{{ old('partner_detail_id') }}" data-old-leave="{{ old('leave_id') }}">
             @csrf
 
-            <div class="kn-drawer-scroll">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="submitTitle">Ajukan Izin / Tukar Shift</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+            </div>
+
+            <div class="modal-body">
                 @if ($errors->any())
                     <div class="alert alert-danger py-2 small">
                         <ul class="mb-0 ps-3">
@@ -67,16 +67,16 @@
 
                     <div class="mb-1">
                         <label class="form-label small fw-semibold" for="submitReason">Alasan Pengajuan</label>
-                        <textarea class="form-control" id="submitReason" name="reason" rows="4" minlength="10" maxlength="500" required
-                            placeholder="Jelaskan alasan pengajuan Anda (minimal 10 karakter)...">{{ old('reason') }}</textarea>
+                        <textarea class="form-control" id="submitReason" name="reason" rows="4" minlength="20" maxlength="500" required
+                            placeholder="Jelaskan alasan pengajuan Anda dengan kalimat yang lengkap (minimal 20 karakter)...">{{ old('reason') }}</textarea>
                         <div class="kn-muted small text-end mt-1" id="submitCount">0 karakter</div>
                     </div>
                 @endif
             </div>
 
-            <div class="kn-drawer-footer">
-                <button type="button" class="btn-kn-outline flex-fill" data-bs-dismiss="offcanvas">Batal</button>
-                <button type="submit" class="btn-kn flex-fill" @disabled($options->isEmpty())>Kirim Pengajuan</button>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn-kn-outline" data-bs-dismiss="modal">Batal</button>
+                <button type="submit" class="btn-kn" @disabled($options->isEmpty())>Kirim Pengajuan</button>
             </div>
         </form>
     </div>
