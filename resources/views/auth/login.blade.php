@@ -62,8 +62,6 @@
                     </a>
 
                     <button type="submit" class="btn-kn w-100">Masuk</button>
-
-                    <p class="auth-foot">Belum punya akun? <strong>Hubungi Supervisor</strong></p>
                 </form>
             </div>
         </div>
