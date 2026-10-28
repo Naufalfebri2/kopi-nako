@@ -51,6 +51,7 @@ class RequestSubmission
 
         return $own->map(function (ShiftScheduleDetail $detail) use ($candidates) {
             $shift = $detail->schedule->masterShift;
+            $date = $detail->date->copy()->locale('id');
 
             $partners = $detail->status_lead
                 ? []
@@ -66,8 +67,12 @@ class RequestSubmission
 
             return [
                 'id' => $detail->id,
-                'label' => $detail->date->copy()->locale('id')->translatedFormat('D, j M Y')
-                    .' · '.$shift->name.' ('.$shift->time_range.')',
+                'label' => $date->translatedFormat('D, j M Y').' · '.$shift->name.' ('.$shift->time_range.')',
+                // Dipisah untuk empat isian terpisah di form Ajukan
+                'hari' => $date->translatedFormat('l'),
+                'tanggal' => $date->translatedFormat('j M'),
+                'tahun' => $date->format('Y'),
+                'shift' => $shift->name.' ('.$shift->time_range.')',
                 'canSwap' => ! $detail->status_lead,
                 'partners' => $partners,
             ];

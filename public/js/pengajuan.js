@@ -48,6 +48,12 @@
     const hint = document.getElementById("tukarHint");
     const reason = form.elements.reason;
     const counter = document.getElementById("submitCount");
+    const info = {
+        hari: document.getElementById("infoHari"),
+        tanggal: document.getElementById("infoTanggal"),
+        tahun: document.getElementById("infoTahun"),
+        shift: document.getElementById("infoShift"),
+    };
 
     const currentType = () =>
         form.querySelector('input[name="jenis"]:checked').value;
@@ -62,27 +68,37 @@
         form.elements.partner_detail_id.required = type === "tukar";
     }
 
+    // Isi rincian jadwal (hari, tanggal, tahun, shift) dari pilihan yang dipilih
+    function refreshSchedule() {
+        const option = form.elements.detail_id.selectedOptions[0];
+        const data = option && option.value ? option.dataset : {};
+
+        Object.keys(info).forEach((key) => {
+            info[key].value = data[key] || "";
+        });
+    }
+
     function refreshPartners() {
         const select = form.elements.partner_detail_id;
-        const info = map[form.elements.detail_id.value];
+        const detail = map[form.elements.detail_id.value];
 
         select.innerHTML = '<option value="">Pilih rekan kerja</option>';
         hint.textContent = "";
 
-        if (!info) return;
+        if (!detail) return;
 
-        if (!info.canSwap) {
+        if (!detail.canSwap) {
             hint.textContent = "Leader pada shift ini tidak bisa tukar shift.";
             return;
         }
 
-        if (info.partners.length === 0) {
+        if (detail.partners.length === 0) {
             hint.textContent =
                 "Tidak ada rekan yang bisa diajak tukar pada tanggal ini.";
             return;
         }
 
-        info.partners.forEach((partner) => {
+        detail.partners.forEach((partner) => {
             const option = document.createElement("option");
             option.value = partner.id;
             option.textContent = partner.label;
@@ -93,7 +109,10 @@
     form.querySelectorAll('input[name="jenis"]').forEach((radio) =>
         radio.addEventListener("change", refreshType),
     );
-    form.elements.detail_id.addEventListener("change", refreshPartners);
+    form.elements.detail_id.addEventListener("change", () => {
+        refreshSchedule();
+        refreshPartners();
+    });
     reason.addEventListener("input", () => {
         counter.textContent = reason.value.length + " karakter";
     });
@@ -110,6 +129,7 @@
     if (oldDetail) form.elements.detail_id.value = oldDetail;
 
     refreshType();
+    refreshSchedule();
     refreshPartners();
 
     if (oldPartner) form.elements.partner_detail_id.value = oldPartner;

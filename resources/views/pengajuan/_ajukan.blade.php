@@ -37,14 +37,40 @@
                         <label for="jenisTukar">Tukar Shift</label>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-2">
                         <label class="form-label small fw-semibold" for="submitDetail">Jadwal Saya</label>
                         <select class="form-select" id="submitDetail" name="detail_id" required>
                             <option value="">Pilih jadwal</option>
                             @foreach ($options as $option)
-                                <option value="{{ $option['id'] }}">{{ $option['label'] }}</option>
+                                <option value="{{ $option['id'] }}" data-hari="{{ $option['hari'] }}"
+                                    data-tanggal="{{ $option['tanggal'] }}" data-tahun="{{ $option['tahun'] }}"
+                                    data-shift="{{ $option['shift'] }}">{{ $option['label'] }}</option>
                             @endforeach
                         </select>
+                    </div>
+
+                    {{-- Rincian jadwal yang dipilih: hanya tampilan, tanpa name sehingga tidak ikut terkirim --}}
+                    <div class="row g-2 mb-3" id="jadwalInfo">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold" for="infoHari">Hari</label>
+                            <input type="text" class="form-control" id="infoHari" placeholder="—" readonly
+                                tabindex="-1">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold" for="infoTanggal">Tanggal</label>
+                            <input type="text" class="form-control" id="infoTanggal" placeholder="—" readonly
+                                tabindex="-1">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold" for="infoTahun">Tahun</label>
+                            <input type="text" class="form-control" id="infoTahun" placeholder="—" readonly
+                                tabindex="-1">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold" for="infoShift">Shift</label>
+                            <input type="text" class="form-control" id="infoShift" placeholder="—" readonly
+                                tabindex="-1">
+                        </div>
                     </div>
 
                     <div class="mb-3" id="izinFields">
@@ -67,8 +93,8 @@
 
                     <div class="mb-1">
                         <label class="form-label small fw-semibold" for="submitReason">Alasan Pengajuan</label>
-                        <textarea class="form-control" id="submitReason" name="reason" rows="4" minlength="20" maxlength="500" required
-                            placeholder="Jelaskan alasan pengajuan Anda dengan kalimat yang lengkap (minimal 20 karakter)...">{{ old('reason') }}</textarea>
+                        <textarea class="form-control" id="submitReason" name="reason" rows="4" minlength="20" maxlength="500"
+                            required placeholder="Jelaskan alasan pengajuan Anda dengan kalimat yang lengkap (minimal 20 karakter)...">{{ old('reason') }}</textarea>
                         <div class="kn-muted small text-end mt-1" id="submitCount">0 karakter</div>
                     </div>
                 @endif
