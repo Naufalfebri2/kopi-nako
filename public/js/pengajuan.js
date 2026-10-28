@@ -1,14 +1,15 @@
 (function () {
-    // Panel detail pengajuan, dimuat lewat fetch
-    const detailEl = document.getElementById("detailDrawer");
+    // Detail pengajuan (pop-up), isinya dimuat lewat fetch
+    const detailEl = document.getElementById("detailModal");
     if (detailEl) {
         const body = document.getElementById("detailBody");
-        const detailDrawer = bootstrap.Offcanvas.getOrCreateInstance(detailEl);
+        const detailModal = bootstrap.Modal.getOrCreateInstance(detailEl);
 
         document.querySelectorAll("[data-detail-url]").forEach((row) => {
             row.addEventListener("click", async () => {
-                body.innerHTML = '<div class="kn-empty">Memuat…</div>';
-                detailDrawer.show();
+                body.innerHTML =
+                    '<div class="modal-body"><div class="kn-empty">Memuat…</div></div>';
+                detailModal.show();
 
                 try {
                     const res = await fetch(row.dataset.detailUrl, {
@@ -18,7 +19,7 @@
                     body.innerHTML = await res.text();
                 } catch (err) {
                     body.innerHTML =
-                        '<div class="kn-empty">Gagal memuat detail pengajuan.</div>';
+                        '<div class="modal-body"><div class="kn-empty">Gagal memuat detail pengajuan.</div></div>';
                 }
             });
         });

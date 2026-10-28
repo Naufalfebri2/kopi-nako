@@ -136,12 +136,17 @@
 
     <div class="mt-3">{{ $requests->links() }}</div>
 
-    <div class="offcanvas offcanvas-end kn-drawer" tabindex="-1" id="detailDrawer" aria-labelledby="detailTitle">
-        <div class="offcanvas-header">
-            <h5 class="offcanvas-title" id="detailTitle">Detail Pengajuan</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Tutup"></button>
+    {{-- Detail pengajuan (pop-up). Isinya dimuat lewat fetch ke #detailBody. --}}
+    <div class="modal fade" id="detailModal" tabindex="-1" aria-labelledby="detailTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title" id="detailTitle">Detail Pengajuan</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                </div>
+                <div class="d-flex flex-column flex-grow-1 overflow-hidden" id="detailBody"></div>
+            </div>
         </div>
-        <div class="offcanvas-body" id="detailBody"></div>
     </div>
 
     @if ($canSubmit)

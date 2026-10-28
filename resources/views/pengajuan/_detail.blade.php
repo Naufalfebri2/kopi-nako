@@ -19,7 +19,7 @@
     };
 @endphp
 
-<div class="kn-drawer-scroll">
+<div class="modal-body">
     <div class="d-flex align-items-center gap-3 mb-4">
         <span class="kn-avatar kn-avatar-lg">{{ $req->employee->user->initials }}</span>
         <div>
@@ -91,7 +91,7 @@
     </div>
 </div>
 
-<div class="kn-drawer-footer">
+<div class="modal-footer border-0 pt-0">
     @if ($canDecide)
         <form method="POST" action="{{ route('pengajuan.decide', $req) }}" class="flex-fill"
             onsubmit="return confirm('{{ $confirmReject }}')">
@@ -106,6 +106,6 @@
             <button type="submit" class="btn-kn w-100">{{ $approveLabel }}</button>
         </form>
     @else
-        <button type="button" class="btn-kn-outline flex-fill" data-bs-dismiss="offcanvas">Tutup</button>
+        <button type="button" class="btn-kn-outline flex-fill" data-bs-dismiss="modal">Tutup</button>
     @endif
 </div>

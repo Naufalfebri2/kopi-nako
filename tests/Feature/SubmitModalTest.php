@@ -30,8 +30,7 @@ class SubmitModalTest extends TestCase
             ->get(route('pengajuan.index'))
             ->assertOk()
             ->assertSee('id="submitModal"', false)
-            ->assertDontSee('id="submitDrawer"', false)
-            ->assertSee('id="detailDrawer"', false); // panel detail tetap panel samping
+            ->assertDontSee('id="submitDrawer"', false);
     }
 
     public function test_petunjuk_alasan_sesuai_aturan_server(): void
