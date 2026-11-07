@@ -26,10 +26,12 @@ Route::get('/', function () {
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-        Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:30,1');
+    // Batas per IP hanya pelindung banjir permintaan. Percobaan gagal per akun dihitung di AuthController.
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:30,1');
 });
 
-Route::middleware('auth')->group(function () {
+// Semua route di bawah ini wajib login dan dibatasi lajunya per pengguna (lihat AppServiceProvider).
+Route::middleware(['auth', 'throttle:aplikasi'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     Route::post('/notifikasi/baca', [NotificationController::class, 'read'])->name('notifikasi.baca');
 
@@ -37,7 +39,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/jadwal', [ScheduleController::class, 'index'])->name('jadwal.index');
     // Ekspor Excel: Leader dan Supervisor (dicek di controller, Karyawan mendapat 403).
     Route::get('/jadwal/ekspor', [ScheduleController::class, 'export'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:ekspor')
         ->name('jadwal.export');
     Route::post('/jadwal', [ScheduleController::class, 'store'])->name('jadwal.store');
     Route::put('/jadwal/{detail}', [ScheduleController::class, 'update'])->name('jadwal.update');
@@ -54,14 +56,14 @@ Route::middleware('auth')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
         Route::post('/jadwal/kirim', [ScheduleDeliveryController::class, 'store'])
-            ->middleware('throttle:5,1')
+            ->middleware('throttle:kirim-jadwal')
             ->name('jadwal.kirim');
 
         Route::get('/laporan', [ReportController::class, 'index'])->name('laporan.index');
         Route::get('/laporan/pdf', [ReportController::class, 'pdf'])->name('laporan.pdf');
 
         Route::post('/karyawan', [EmployeeController::class, 'store'])
-            ->middleware('throttle:20,1')
+            ->middleware('throttle:karyawan-baru')
             ->name('karyawan.store');
         Route::put('/karyawan/{employee}', [EmployeeController::class, 'update'])->name('karyawan.update');
         Route::delete('/karyawan/{employee}', [EmployeeController::class, 'destroy'])->name('karyawan.destroy');
