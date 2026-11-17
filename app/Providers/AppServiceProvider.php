@@ -6,6 +6,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -18,6 +19,10 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // <-- tambah blok ini
+        if (config('app.env') === 'production') {
+            URL::forceScheme('https');
+        }
         Paginator::useBootstrapFive();
 
         $this->configureRateLimiting();
