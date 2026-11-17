@@ -15,7 +15,13 @@
     <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-4">
         <div>
             <h1 class="kn-page-title">Pengajuan Izin / Tukar Shift</h1>
-            <div class="kn-page-sub">Riwayat lengkap dan status persetujuan pengajuan karyawan</div>
+            <div class="kn-page-sub">
+                @if ($isSupervisor)
+                    Riwayat lengkap dan status persetujuan pengajuan karyawan
+                @else
+                    Pengajuan yang sedang menunggu persetujuan
+                @endif
+            </div>
         </div>
         @if ($canSubmit)
             <button type="button" class="btn-kn" id="openSubmit">+ Ajukan Baru</button>
@@ -37,15 +43,17 @@
     @endif
 
     <div class="row g-3 mb-4">
-        <div class="col-6 col-lg-3">
-            <x-stat-card icon="fa-regular fa-file-lines" :value="$stats['total']" label="Total Diajukan" tone="muted" />
-        </div>
-        <div class="col-6 col-lg-3">
-            <x-stat-card icon="fa-solid fa-check" :value="$stats['disetujui']" label="Disetujui" />
-        </div>
-        <div class="col-6 col-lg-3">
-            <x-stat-card icon="fa-solid fa-xmark" :value="$stats['ditolak']" label="Ditolak" />
-        </div>
+        @if ($isSupervisor)
+            <div class="col-6 col-lg-3">
+                <x-stat-card icon="fa-regular fa-file-lines" :value="$stats['total']" label="Total Diajukan" tone="muted" />
+            </div>
+            <div class="col-6 col-lg-3">
+                <x-stat-card icon="fa-solid fa-check" :value="$stats['disetujui']" label="Disetujui" />
+            </div>
+            <div class="col-6 col-lg-3">
+                <x-stat-card icon="fa-solid fa-xmark" :value="$stats['ditolak']" label="Ditolak" />
+            </div>
+        @endif
         <div class="col-6 col-lg-3">
             <x-stat-card icon="fa-solid fa-hourglass-half" :value="$stats['menunggu']" label="Menunggu" tone="warn" />
         </div>
@@ -53,14 +61,16 @@
 
     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
         <form method="GET" action="{{ route('pengajuan.index') }}" class="d-flex flex-wrap gap-2">
-            <select name="status" class="form-select kn-filter" onchange="this.form.submit()">
-                <option value="">Semua Status</option>
-                @foreach (\App\Enums\RequestStatus::cases() as $status)
-                    <option value="{{ $status->value }}" @selected(request('status') === $status->value)>
-                        {{ $status->label() }}
-                    </option>
-                @endforeach
-            </select>
+            @if ($isSupervisor)
+                <select name="status" class="form-select kn-filter" onchange="this.form.submit()">
+                    <option value="">Semua Status</option>
+                    @foreach (\App\Enums\RequestStatus::cases() as $status)
+                        <option value="{{ $status->value }}" @selected(request('status') === $status->value)>
+                            {{ $status->label() }}
+                        </option>
+                    @endforeach
+                </select>
+            @endif
             <select name="jenis" class="form-select kn-filter" onchange="this.form.submit()">
                 <option value="">Semua Jenis</option>
                 <option value="izin" @selected(request('jenis') === 'izin')>Izin</option>
@@ -126,7 +136,9 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="kn-empty">Belum ada pengajuan.</td>
+                            <td colspan="8" class="kn-empty">
+                                {{ $isSupervisor ? 'Belum ada pengajuan.' : 'Tidak ada pengajuan yang menunggu.' }}
+                            </td>
                         </tr>
                     @endforelse
                 </tbody>

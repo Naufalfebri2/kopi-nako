@@ -31,13 +31,13 @@ class ShiftRequestController extends Controller
     public function index(Request $request): View
     {
         $user = $request->user();
+        $isSupervisor = $user->hasRole(Role::SUPERVISOR);
         $scoped = $this->scopedQuery($user);
 
         $actionableIds = $this->approval->pendingFor($user)->pluck('id');
-        $isSupervisor = $user->hasRole(Role::SUPERVISOR);
 
         return view('pengajuan.index', [
-            'requests' => $this->listing($request, $scoped),
+            'requests' => $this->listing($request, $scoped, $isSupervisor),
             'stats' => $this->stats($scoped),
             'actionableIds' => $actionableIds,
             'isSupervisor' => $isSupervisor,
@@ -150,20 +150,20 @@ class ShiftRequestController extends Controller
         return back()->with('notice', $notice);
     }
 
-    // Daftar pengajuan dengan filter status, jenis, dan bulan, 10 per halaman
-    private function listing(Request $request, Builder $scoped): LengthAwarePaginator
+    // Daftar pengajuan dengan filter status, jenis, dan bulan, 10 per halaman.
+    // Filter status hanya berlaku untuk Supervisor; Karyawan dan Leader sudah dibatasi
+    // pada pengajuan yang masih menunggu oleh scopedQuery().
+    private function listing(Request $request, Builder $scoped, bool $withHistory): LengthAwarePaginator
     {
         $range = $this->monthRange($request->query('bulan'));
+        $status = $withHistory ? RequestStatus::tryFrom((string) $request->query('status')) : null;
 
         return (clone $scoped)
             ->with([
                 'employee.user.role', 'schedule.masterShift', 'schedule.firstDetail',
                 'partnerSchedule.masterShift', 'leaveType',
             ])
-            ->when(
-                RequestStatus::tryFrom((string) $request->query('status')),
-                fn ($query, $status) => $query->where('status', $status)
-            )
+            ->when($status, fn ($query, $status) => $query->where('status', $status))
             ->when($request->query('jenis') === 'izin', fn ($query) => $query->whereNotNull('leave_id'))
             ->when($request->query('jenis') === 'tukar', fn ($query) => $query->whereNotNull('partner_id'))
             ->when($range, fn ($query, $between) => $query->whereBetween('created_at', $between))
@@ -213,20 +213,26 @@ class ShiftRequestController extends Controller
         ];
     }
 
-    // Supervisor: semua. Leader: dirinya dan sedivisi. Karyawan: dirinya.
+    // Supervisor: semua, termasuk riwayat. Leader: dirinya dan sedivisi. Karyawan: dirinya.
     // Ketiganya ditambah pengajuan yang menunjuk dirinya sebagai rekan tukar.
+    // Hanya Supervisor yang melihat riwayat; Leader dan Karyawan hanya yang masih menunggu.
     private function scopedQuery(User $user): Builder
     {
         $visible = $this->schedule->visibleEmployeeIds($user);
+        $query = ShiftRequest::query();
 
-        if ($visible === null) {
-            return ShiftRequest::query();
+        if ($visible !== null) {
+            $employeeId = $user->employee?->id ?? 0;
+
+            $query->where(fn ($q) => $q
+                ->whereIn('employee_id', $visible)
+                ->orWhere('partner_id', $employeeId));
         }
 
-        $employeeId = $user->employee?->id ?? 0;
+        if (! $user->hasRole(Role::SUPERVISOR)) {
+            $query->where('status', RequestStatus::Menunggu);
+        }
 
-        return ShiftRequest::query()->where(fn ($q) => $q
-            ->whereIn('employee_id', $visible)
-            ->orWhere('partner_id', $employeeId));
+        return $query;
     }
 }
