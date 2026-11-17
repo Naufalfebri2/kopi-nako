@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\RequestStatus;
 use App\Models\Employee;
+use App\Models\MasterShift;
 use App\Models\Role;
 use App\Models\ShiftRequest;
 use App\Models\User;
@@ -15,6 +16,8 @@ class ShiftRequestVisibilityTest extends TestCase
 {
     use BuildsScheduleData;
     use RefreshDatabase;
+
+    private MasterShift $shift;
 
     private Employee $supervisor;
     private Employee $leaderBar;
@@ -33,7 +36,8 @@ class ShiftRequestVisibilityTest extends TestCase
         parent::setUp();
 
         $this->mockDivisions();
-        $shift = $this->makeShift();
+        $this->shift = $this->makeShift();
+        $shift = $this->shift;
 
         $this->supervisor = $this->makeEmployee(Role::SUPERVISOR, 'Manajer', 'Sari Supervisor');
         $this->leaderBar = $this->makeEmployee(Role::LEADER, 'Barista', 'Lia Leader');
@@ -71,25 +75,26 @@ class ShiftRequestVisibilityTest extends TestCase
         $this->actingAs($user)->get($this->detailUrl($this->izinDapur))->assertForbidden();
     }
 
-    public function test_leader_melihat_pengajuan_sedivisi_dan_tidak_melihat_divisi_lain(): void
+    public function test_leader_melihat_pengajuan_menunggu_sedivisi_dan_tidak_melihat_divisi_lain(): void
     {
         $user = $this->leaderBar->user;
 
+        // izinBar2 sudah Disetujui (riwayat), jadi tidak lagi tampil di daftar Leader
         $this->assertEqualsCanonicalizing(
-            [$this->izinLeader->id, $this->izinBar->id, $this->izinBar2->id],
+            [$this->izinLeader->id, $this->izinBar->id],
             $this->listedIds($user),
         );
 
-        $this->actingAs($user)->get($this->detailUrl($this->izinBar2))->assertOk();
         $this->actingAs($user)->get($this->detailUrl($this->izinDapur))->assertForbidden();
         $this->actingAs($user)->get($this->detailUrl($this->tukarDapurKeBar))->assertForbidden();
     }
 
-    public function test_supervisor_melihat_semua_pengajuan(): void
+    public function test_supervisor_melihat_semua_pengajuan_termasuk_riwayat(): void
     {
         $user = $this->supervisor->user;
 
         $this->assertCount(5, $this->listedIds($user));
+        $this->assertContains($this->izinBar2->id, $this->listedIds($user));
         $this->actingAs($user)->get($this->detailUrl($this->izinDapur))->assertOk();
     }
 
@@ -100,8 +105,9 @@ class ShiftRequestVisibilityTest extends TestCase
             $this->statsFor($this->empBar->user),
         );
 
+        // Leader tidak lagi menghitung riwayat
         $this->assertSame(
-            ['total' => 3, 'disetujui' => 1, 'ditolak' => 0, 'menunggu' => 2],
+            ['total' => 2, 'disetujui' => 0, 'ditolak' => 0, 'menunggu' => 2],
             $this->statsFor($this->leaderBar->user),
         );
 
@@ -111,13 +117,76 @@ class ShiftRequestVisibilityTest extends TestCase
         );
     }
 
-    public function test_filter_status_tetap_berjalan_di_dalam_pembatasan_role(): void
+    public function test_supervisor_dapat_memfilter_status_riwayat(): void
+    {
+        $response = $this->actingAs($this->supervisor->user)
+            ->get(route('pengajuan.index', ['status' => RequestStatus::Disetujui->value]))
+            ->assertOk();
+
+        $this->assertSame([$this->izinBar2->id], $response->viewData('requests')->pluck('id')->all());
+    }
+
+    public function test_leader_tidak_bisa_membuka_riwayat_lewat_filter_status(): void
     {
         $response = $this->actingAs($this->leaderBar->user)
             ->get(route('pengajuan.index', ['status' => RequestStatus::Disetujui->value]))
             ->assertOk();
 
-        $this->assertSame([$this->izinBar2->id], $response->viewData('requests')->pluck('id')->all());
+        // Filter status diabaikan untuk Leader; izinBar2 (Disetujui) tetap tidak tampil
+        $this->assertEqualsCanonicalizing(
+            [$this->izinLeader->id, $this->izinBar->id],
+            $response->viewData('requests')->pluck('id')->all(),
+        );
+    }
+
+    public function test_karyawan_tidak_melihat_pengajuannya_sendiri_yang_sudah_diputuskan(): void
+    {
+        $ditolak = $this->makeRequest(
+            $this->assign($this->empBar, $this->shift, '2026-10-22'),
+            ['status' => RequestStatus::Ditolak],
+        );
+        $disetujui = $this->makeRequest(
+            $this->assign($this->empBar, $this->shift, '2026-10-23'),
+            ['status' => RequestStatus::Disetujui],
+        );
+
+        $ids = $this->listedIds($this->empBar->user);
+
+        $this->assertNotContains($ditolak->id, $ids);
+        $this->assertNotContains($disetujui->id, $ids);
+        $this->assertEqualsCanonicalizing([$this->izinBar->id, $this->tukarDapurKeBar->id], $ids);
+    }
+
+    public function test_karyawan_tidak_bisa_membuka_riwayat_lewat_filter_status(): void
+    {
+        $disetujui = $this->makeRequest(
+            $this->assign($this->empBar, $this->shift, '2026-10-23'),
+            ['status' => RequestStatus::Disetujui],
+        );
+
+        $response = $this->actingAs($this->empBar->user)
+            ->get(route('pengajuan.index', ['status' => RequestStatus::Disetujui->value]))
+            ->assertOk();
+
+        $ids = $response->viewData('requests')->pluck('id')->all();
+
+        $this->assertNotContains($disetujui->id, $ids);
+        $this->assertEqualsCanonicalizing([$this->izinBar->id, $this->tukarDapurKeBar->id], $ids);
+    }
+
+    public function test_filter_status_dan_kartu_riwayat_hanya_tampil_untuk_supervisor(): void
+    {
+        foreach ([$this->empBar->user, $this->leaderBar->user] as $user) {
+            $this->actingAs($user)->get(route('pengajuan.index'))
+                ->assertOk()
+                ->assertDontSee('Semua Status')
+                ->assertDontSee('Total Diajukan');
+        }
+
+        $this->actingAs($this->supervisor->user)->get(route('pengajuan.index'))
+            ->assertOk()
+            ->assertSee('Semua Status')
+            ->assertSee('Total Diajukan');
     }
 
     public function test_stepper_hanya_tampil_untuk_pengaju(): void
